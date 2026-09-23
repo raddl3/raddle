@@ -1,0 +1,45 @@
+version: '3'
+
+tasks:
+  bootstrap:
+    desc: Install locked Python dependencies and Git hooks
+    cmds:
+      - uv sync --frozen
+      - lefthook install
+  fmt:
+    cmds:
+      - uv run --frozen ruff format .
+      - uv run --frozen ruff check --fix .
+  lint:
+    cmds:
+      - uv run --frozen ruff format --check .
+      - uv run --frozen ruff check .
+  typecheck:
+    cmd: uv run --frozen mypy
+  test:
+    cmd: uv run --frozen pytest --cov=raddle --cov-report=term-missing
+  security:
+    cmds:
+      - uv run --frozen bandit -q -r src
+      - trivy fs --scanners vuln,misconfig,secret --include-dev-deps --severity HIGH,CRITICAL --exit-code 1 .
+  config:
+    cmds:
+      - lefthook validate
+      - prek validate-config prek.toml
+      - task --list-all
+  check:
+    cmds:
+      - task: lint
+      - task: typecheck
+      - task: test
+      - task: security
+      - task: config
+      - prek run --all-files
+  build:
+    cmd: uv build
+  ci:
+    cmds:
+      - task: check
+      - task: build
+  clean:
+    cmd: uv run --frozen python -c "import pathlib, shutil; [shutil.rmtree(p, ignore_errors=True) for p in ('dist', '.pytest_cache', '.mypy_cache', '.ruff_cache', 'htmlcov')]; pathlib.Path('.coverage').unlink(missing_ok=True)"
