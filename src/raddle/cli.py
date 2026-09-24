@@ -3,8 +3,10 @@
 import argparse
 import json
 from collections.abc import Sequence
+from pathlib import Path
 
 from raddle import __version__
+from raddle.agent import init as agent_init
 from raddle.contracts import TimingScope
 from raddle.cupy_backend import BackendUnavailable
 from raddle.registry import get_accelerator, list_accelerators
@@ -14,6 +16,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="raddle")
     parser.add_argument("--version", action="version", version=f"raddle {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
+    agent_parser = commands.add_parser("agent", help="Set up a local coding agent")
+    agent_commands = agent_parser.add_subparsers(dest="agent_command", required=True)
+    init_parser = agent_commands.add_parser("init", help="Install the Raddle skill")
+    init_parser.add_argument("--target", type=Path, help="Project root")
+    init_parser.add_argument("--agent", choices=("codex", "claude"))
+    init_parser.add_argument("--dry-run", action="store_true")
     list_parser = commands.add_parser("list", help="List product accelerators")
     list_parser.add_argument("--json", action="store_true")
     inspect_parser = commands.add_parser(
@@ -35,7 +43,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=TimingScope.END_TO_END.value,
     )
     benchmark_parser.add_argument("--baseline", default="python.scalar")
+    benchmark_parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
+    if args.command == "agent":
+        try:
+            print(agent_init(args.target, args.agent, args.dry_run))
+        except ValueError as error:
+            parser.error(str(error))
+        return 0
     if args.command == "list":
         products = list_accelerators()
         if args.json:
@@ -113,6 +128,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             TimingScope(args.timing_scope),
             args.baseline,
         )
+        if args.output is not None:
+            args.output.write_text(benchmark_receipt.to_json() + "\n", encoding="utf-8")
         if args.json:
             print(benchmark_receipt.to_json())
         else:

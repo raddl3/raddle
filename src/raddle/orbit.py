@@ -4,7 +4,7 @@ import math
 import statistics
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from functools import partial
 
 import numpy as np
@@ -92,7 +92,7 @@ DESCRIPTOR = AcceleratorDescriptor(
 
 def case(case_id: str) -> PropagationInput:
     definition = next((item for item in DESCRIPTOR.cases if item.id == case_id), None)
-    if definition is None:
+    if not isinstance(definition, CaseDescriptor):
         raise KeyError(case_id)
     states = np.empty((definition.trajectories, 6), dtype=np.float64)
     for index in range(definition.trajectories):
@@ -312,10 +312,11 @@ def benchmark(
     median_baseline = statistics.median(baseline_times)
     median_candidate = statistics.median(candidate_times)
     return BenchmarkReceipt(
-        schema_version=2,
+        schema_version=3,
         accelerator_id=DESCRIPTOR.id,
         accelerator_version=DESCRIPTOR.version,
         case_id=case_id,
+        workload=asdict(next(item for item in DESCRIPTOR.cases if item.id == case_id)),
         validation=validation,
         clock="perf_counter_ns",
         timing_scope=timing_scope,

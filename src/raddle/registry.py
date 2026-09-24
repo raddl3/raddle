@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from raddle import orbit
+from raddle import bootstrap, orbit
 from raddle.contracts import (
     AcceleratorDescriptor,
     BenchmarkReceipt,
@@ -23,7 +23,13 @@ class RegisteredAccelerator:
 _PRODUCTS = {
     orbit.DESCRIPTOR.id: RegisteredAccelerator(
         orbit.DESCRIPTOR, orbit.verify, orbit.benchmark, orbit.availability
-    )
+    ),
+    bootstrap.DESCRIPTOR.id: RegisteredAccelerator(
+        bootstrap.DESCRIPTOR,
+        bootstrap.verify,
+        bootstrap.benchmark,
+        bootstrap.availability,
+    ),
 }
 
 

@@ -5,6 +5,16 @@ path against it. Its first product accelerator, `orbit.two_body_rk4`, propagates
 independent Cartesian two-body trajectories with the same RK4 method in a
 legible scalar Python reference, a NumPy-vectorized CPU candidate, and an
 optional CuPy CUDA candidate.
+`stats.bootstrap` applies the same contract to deterministic bootstrap means,
+returning the full replicate distribution and percentile interval from a
+shared chunked resampling plan.
+
+For an existing project, run `uvx raddle agent init` from its root to install
+the provider-neutral Raddle acceleration skill and print a kickoff prompt.
+Codex uses `.agents/skills/`; Claude Code uses `.claude/skills/`. Use
+`--agent claude` or `--agent codex` when both are present, `--target PATH` to
+name a project root, and `--dry-run` to preview files. Existing modified skill
+files are never overwritten. For direct Python library use, `uv add raddle`.
 
 ```sh
 uv sync --frozen
@@ -13,6 +23,9 @@ uv run --frozen raddle list
 uv run --frozen raddle inspect orbit.two_body_rk4 --json
 uv run --frozen raddle verify orbit.two_body_rk4 --case circular.small --json
 uv run --frozen raddle benchmark orbit.two_body_rk4 --case batch.standard --repeat 5 --warmup 1 --json
+uv run --frozen raddle verify stats.bootstrap --case bootstrap.small --json
+uv run --frozen raddle benchmark stats.bootstrap --case bootstrap.standard --baseline numpy.vectorized --repeat 5 --warmup 1 --output local-bootstrap.json
+task evidence
 task ci
 ```
 
@@ -33,6 +46,11 @@ with individual timings, medians, synchronization, scope, transfer policy, and
 the computed same-scope ratio. A local measurement is not a portable
 performance claim. See [ADR-0003](docs/architecture/ADR-0003-gpu-benchmark-semantics.md)
 for the asynchronous timing boundary.
+
+Published receipts live in `src/raddle/receipts/` and are checked in CI.
+They are measured evidence; any displayed claim must be derived from a valid
+committed receipt with its workload, scope, hardware, and validation context.
+See [ADR-0004](docs/architecture/ADR-0004-bootstrap-and-published-evidence.md).
 
 The old `fixture.sum_squares` was only a bootstrap test fixture and is not a
 product accelerator. The contract decision is recorded in

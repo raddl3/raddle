@@ -7,6 +7,10 @@ import numpy as np
 from pytest import MonkeyPatch
 
 from raddle import cupy_backend
+from raddle.bootstrap import CUPY as BOOTSTRAP_CUPY
+from raddle.bootstrap import accelerated as bootstrap_accelerated
+from raddle.bootstrap import benchmark as bootstrap_benchmark
+from raddle.bootstrap import verify as bootstrap_verify
 from raddle.contracts import TimingScope, TransferInclusion
 from raddle.orbit import CUPY, benchmark, verify
 
@@ -54,6 +58,7 @@ class FakeCupy:
     asarray = staticmethod(np.asarray)
     array = staticmethod(np.array)
     sum = staticmethod(np.sum)
+    mean = staticmethod(np.mean)
     sqrt = staticmethod(np.sqrt)
     concatenate = staticmethod(np.concatenate)
     isfinite = staticmethod(np.isfinite)
@@ -65,6 +70,13 @@ class FakeCupy:
 
 def test_optional_boundary_and_scopes(monkeypatch: MonkeyPatch) -> None:
     fake = FakeCupy()
+    # The CPU fake exercises backend wiring; the RawKernel is tested on CUDA.
+    monkeypatch.setattr(
+        "raddle.bootstrap._gpu_distribution",
+        lambda inputs, cupy, device_sample=None: (
+            bootstrap_accelerated(inputs).distribution
+        ),
+    )
     monkeypatch.setattr(importlib.util, "find_spec", lambda _: object())
     monkeypatch.setattr(importlib, "import_module", lambda _: fake)
     assert cupy_backend.load() is fake
@@ -89,3 +101,10 @@ def test_optional_boundary_and_scopes(monkeypatch: MonkeyPatch) -> None:
         assert receipt.host_device_transfers == transfers
         assert receipt.provenance.gpu is not None
     assert fake.cuda.stream.synchronizations >= 6
+    assert bootstrap_verify("bootstrap.small", BOOTSTRAP_CUPY.id).status == "matched"
+    for scope in (TimingScope.END_TO_END, TimingScope.COMPUTE_ONLY):
+        receipt = bootstrap_benchmark(
+            "bootstrap.small", 1, 0, BOOTSTRAP_CUPY.id, scope, "numpy.vectorized"
+        )
+        assert receipt.validation.status == "matched"
+        assert receipt.candidate_synchronization.value == "cuda_current_stream_pre_post"
