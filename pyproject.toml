@@ -1,6 +1,6 @@
 [project]
 name = "raddle"
-version = "0.1.0"
+version = "0.2.0"
 description = "Inspectable acceleration contracts and validation for scientific computing"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -10,6 +10,11 @@ dependencies = ["numpy>=2,<3"]
 
 [project.scripts]
 raddle = "raddle.cli:main"
+
+[project.optional-dependencies]
+cuda12 = [
+    "cupy-cuda12x[ctk]>=14.2,<15 ; (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')",
+]
 
 [build-system]
 requires = ["uv_build==0.8.15"]
@@ -42,6 +47,6 @@ testpaths = ["tests"]
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.1.0"
+version = "0.2.0"
 version_files = ["pyproject.toml:version"]
 update_changelog_on_bump = true

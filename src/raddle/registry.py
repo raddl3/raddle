@@ -4,19 +4,25 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from raddle import orbit
-from raddle.contracts import AcceleratorDescriptor, BenchmarkReceipt, ValidationReceipt
+from raddle.contracts import (
+    AcceleratorDescriptor,
+    BenchmarkReceipt,
+    TimingScope,
+    ValidationReceipt,
+)
 
 
 @dataclass(frozen=True)
 class RegisteredAccelerator:
     descriptor: AcceleratorDescriptor
-    verify: Callable[[str], ValidationReceipt]
-    benchmark: Callable[[str, int, int], BenchmarkReceipt]
+    verify: Callable[[str, str], ValidationReceipt]
+    benchmark: Callable[[str, int, int, str, TimingScope, str], BenchmarkReceipt]
+    availability: Callable[[str], tuple[bool, str]]
 
 
 _PRODUCTS = {
     orbit.DESCRIPTOR.id: RegisteredAccelerator(
-        orbit.DESCRIPTOR, orbit.verify, orbit.benchmark
+        orbit.DESCRIPTOR, orbit.verify, orbit.benchmark, orbit.availability
     )
 }
 

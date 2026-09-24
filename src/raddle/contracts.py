@@ -4,6 +4,7 @@ import json
 import os
 import platform
 from dataclasses import asdict, dataclass
+from enum import StrEnum
 from typing import Literal
 
 import numpy as np
@@ -19,6 +20,7 @@ def _json(value: dict[str, object]) -> str:
 class ImplementationIdentity:
     id: str
     version: str
+    optional_extra: str | None = None
 
 
 @dataclass(frozen=True)
@@ -43,7 +45,7 @@ class AcceleratorDescriptor:
     version: str
     name: str
     reference: ImplementationIdentity
-    candidate: ImplementationIdentity
+    candidates: tuple[ImplementationIdentity, ...]
     input_contract: str
     output_contract: str
     precision: Literal["float64"]
@@ -51,11 +53,27 @@ class AcceleratorDescriptor:
     validation_policy: ValidationPolicy
     cases: tuple[CaseDescriptor, ...]
 
+    @property
+    def candidate(self) -> ImplementationIdentity:
+        """The default CPU candidate retained for v0.1 callers."""
+        return self.candidates[0]
+
     def to_dict(self) -> dict[str, object]:
-        return asdict(self)
+        data = asdict(self)
+        data["candidate"] = asdict(self.candidate)
+        return data
 
     def to_json(self) -> str:
         return _json(self.to_dict())
+
+
+@dataclass(frozen=True)
+class GPUProvenance:
+    model: str
+    gpu_count_used: int
+    cuda_runtime_version: int
+    cuda_driver_version: int
+    cupy_version: str
 
 
 @dataclass(frozen=True)
@@ -67,9 +85,10 @@ class ExecutionProvenance:
     architecture: str
     processor: str
     logical_cpu_count: int | None
+    gpu: GPUProvenance | None = None
 
     @classmethod
-    def current(cls) -> "ExecutionProvenance":
+    def current(cls, gpu: GPUProvenance | None = None) -> "ExecutionProvenance":
         # Explicit fields prevent hostname, username, paths, and env leakage.
         return cls(
             python_version=platform.python_version(),
@@ -79,12 +98,29 @@ class ExecutionProvenance:
             architecture=platform.machine(),
             processor=platform.processor() or platform.machine(),
             logical_cpu_count=os.cpu_count(),
+            gpu=gpu,
         )
+
+
+class TimingScope(StrEnum):
+    END_TO_END = "end_to_end"
+    COMPUTE_ONLY = "compute_only"
+
+
+class TransferInclusion(StrEnum):
+    INCLUDED = "included"
+    EXCLUDED = "excluded"
+    NOT_APPLICABLE = "not_applicable"
+
+
+class Synchronization(StrEnum):
+    SYNCHRONOUS = "synchronous_call"
+    CUDA_STREAM = "cuda_current_stream_pre_post"
 
 
 @dataclass(frozen=True)
 class ValidationReceipt:
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     accelerator_id: str
     accelerator_version: str
     case_id: str
@@ -107,17 +143,23 @@ class ValidationReceipt:
 
 @dataclass(frozen=True)
 class BenchmarkReceipt:
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     accelerator_id: str
     accelerator_version: str
     case_id: str
     validation: ValidationReceipt
     clock: Literal["perf_counter_ns"]
+    timing_scope: TimingScope
+    setup_included: bool
+    host_device_transfers: TransferInclusion
+    baseline: ImplementationIdentity
+    baseline_synchronization: Synchronization
+    candidate_synchronization: Synchronization
     warmup: int
     repeat: int
-    reference_times_ns: tuple[int, ...]
+    baseline_times_ns: tuple[int, ...]
     candidate_times_ns: tuple[int, ...]
-    median_reference_ns: float
+    median_baseline_ns: float
     median_candidate_ns: float
     speedup: float
     provenance: ExecutionProvenance
@@ -125,6 +167,8 @@ class BenchmarkReceipt:
     def __post_init__(self) -> None:
         if self.validation.status != "matched":
             raise ValueError("benchmark evidence requires matched validation")
+        if self.case_id != self.validation.case_id:
+            raise ValueError("benchmark and validation case must match")
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)

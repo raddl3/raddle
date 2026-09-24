@@ -9,11 +9,20 @@ from pytest import CaptureFixture, MonkeyPatch
 
 from raddle import __version__
 from raddle.cli import main
-from raddle.contracts import BenchmarkReceipt, ValidationReceipt
+from raddle.contracts import (
+    BenchmarkReceipt,
+    Synchronization,
+    TimingScope,
+    TransferInclusion,
+    ValidationReceipt,
+)
 from raddle.orbit import (
+    CUPY,
     DESCRIPTOR,
     PropagationInput,
+    _timed,
     accelerated,
+    availability,
     benchmark,
     case,
     reference,
@@ -30,10 +39,16 @@ def test_registry_and_descriptor() -> None:
         get_accelerator("fixture.sum_squares")
     assert DESCRIPTOR.reference.id == "python.scalar"
     assert DESCRIPTOR.candidate.id == "numpy.vectorized"
-    assert [item.id for item in DESCRIPTOR.cases] == [
+    assert [item.id for item in DESCRIPTOR.candidates] == [
+        "numpy.vectorized",
+        "cupy.vectorized",
+    ]
+    assert CUPY.optional_extra == "cuda12"
+    assert [item.id for item in DESCRIPTOR.cases][:2] == [
         "circular.small",
         "batch.standard",
     ]
+    assert DESCRIPTOR.cases[-1].id == "batch.64k"
     assert DESCRIPTOR.to_json() == DESCRIPTOR.to_json()
     assert json.loads(DESCRIPTOR.to_json())["precision"] == "float64"
 
@@ -110,16 +125,20 @@ def test_circular_orbit_physical_sanity() -> None:
 def test_benchmark_receipt_and_private_provenance() -> None:
     receipt = benchmark("circular.small", repeat=2, warmup=0)
     assert isinstance(receipt, BenchmarkReceipt)
-    assert receipt.schema_version == receipt.validation.schema_version == 1
+    assert receipt.schema_version == receipt.validation.schema_version == 2
     assert receipt.validation.status == "matched"
-    assert len(receipt.reference_times_ns) == len(receipt.candidate_times_ns) == 2
+    assert len(receipt.baseline_times_ns) == len(receipt.candidate_times_ns) == 2
     assert all(
-        value > 0 for value in receipt.reference_times_ns + receipt.candidate_times_ns
+        value > 0 for value in receipt.baseline_times_ns + receipt.candidate_times_ns
     )
     assert receipt.speedup > 0
+    assert receipt.timing_scope == TimingScope.END_TO_END
+    assert receipt.setup_included is False
+    assert receipt.host_device_transfers == TransferInclusion.NOT_APPLICABLE
+    assert receipt.candidate_synchronization == Synchronization.SYNCHRONOUS
     data = json.loads(receipt.to_json())
     assert data["clock"] == "perf_counter_ns"
-    assert data["median_reference_ns"] == receipt.median_reference_ns
+    assert data["median_baseline_ns"] == receipt.median_baseline_ns
     with pytest.raises(ValueError, match="matched validation"):
         replace(receipt, validation=replace(receipt.validation, status="mismatched"))
     for forbidden in ("hostname", "username", "home", "path", "environment", "secret"):
@@ -134,7 +153,9 @@ def test_cli(capsys: CaptureFixture[str]) -> None:
         DESCRIPTOR.id
     ]
     assert main(["inspect", DESCRIPTOR.id, "--json"]) == 0
-    assert json.loads(capsys.readouterr().out)["candidate"]["id"] == "numpy.vectorized"
+    inspection = json.loads(capsys.readouterr().out)
+    assert inspection["candidate"]["id"] == "numpy.vectorized"
+    assert inspection["availability"]["cupy.vectorized"]["supported"] is True
     assert main(["verify", DESCRIPTOR.id, "--case", "circular.small", "--json"]) == 0
     first_verify = capsys.readouterr().out
     assert json.loads(first_verify)["status"] == "matched"
@@ -156,7 +177,9 @@ def test_cli(capsys: CaptureFixture[str]) -> None:
         )
         == 0
     )
-    assert json.loads(capsys.readouterr().out)["validation"]["status"] == "matched"
+    benchmark_output = json.loads(capsys.readouterr().out)
+    assert benchmark_output["validation"]["status"] == "matched"
+    assert benchmark_output["timing_scope"] == "end_to_end"
     with pytest.raises(SystemExit) as error:
         main(["--version"])
     assert error.value.code == 0
@@ -187,3 +210,42 @@ def test_benchmark_arguments_and_intermediate_singularity() -> None:
     for implementation in (reference, accelerated):
         with pytest.raises(ValueError, match="singular"):
             implementation(singular)
+
+
+def test_compute_only_cpu_and_timing_barriers(monkeypatch: MonkeyPatch) -> None:
+    receipt = benchmark(
+        "circular.small",
+        repeat=1,
+        warmup=0,
+        baseline_id="numpy.vectorized",
+        timing_scope=TimingScope.COMPUTE_ONLY,
+    )
+    assert receipt.baseline.id == "numpy.vectorized"
+    assert receipt.timing_scope == TimingScope.COMPUTE_ONLY
+    assert receipt.host_device_transfers == TransferInclusion.NOT_APPLICABLE
+    events: list[str] = []
+    times = iter((100, 120))
+    monkeypatch.setattr("raddle.orbit.time.perf_counter_ns", lambda: next(times))
+    assert (
+        _timed(lambda: events.append("run"), lambda: events.append("synchronize")) == 20
+    )
+    assert events == ["synchronize", "run", "synchronize"]
+
+
+def test_optional_implementation_is_distinguished(capsys: CaptureFixture[str]) -> None:
+    available, _ = availability(CUPY.id)
+    assert isinstance(available, bool)
+    if not available:
+        with pytest.raises(SystemExit) as error:
+            main(
+                [
+                    "verify",
+                    DESCRIPTOR.id,
+                    "--case",
+                    "circular.small",
+                    "--implementation",
+                    CUPY.id,
+                ]
+            )
+        assert error.value.code == 2
+        assert "supported but unavailable here" in capsys.readouterr().err
