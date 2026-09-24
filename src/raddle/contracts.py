@@ -1,5 +1,6 @@
 """Versioned public metadata and evidence for Raddle accelerators."""
 
+import hashlib
 import json
 import os
 import platform
@@ -40,6 +41,16 @@ class CaseDescriptor:
 
 
 @dataclass(frozen=True)
+class BootstrapCaseDescriptor:
+    id: str
+    sample_size: int
+    resamples: int
+    seed: int
+    confidence_level: float
+    sample_rule: Literal["linear_0_1_v1"] = "linear_0_1_v1"
+
+
+@dataclass(frozen=True)
 class AcceleratorDescriptor:
     id: str
     version: str
@@ -51,7 +62,8 @@ class AcceleratorDescriptor:
     precision: Literal["float64"]
     supported_environment: str
     validation_policy: ValidationPolicy
-    cases: tuple[CaseDescriptor, ...]
+    cases: tuple[CaseDescriptor | BootstrapCaseDescriptor, ...]
+    algorithm: str | None = None
 
     @property
     def candidate(self) -> ImplementationIdentity:
@@ -143,10 +155,11 @@ class ValidationReceipt:
 
 @dataclass(frozen=True)
 class BenchmarkReceipt:
-    schema_version: Literal[2]
+    schema_version: Literal[3]
     accelerator_id: str
     accelerator_version: str
     case_id: str
+    workload: dict[str, object]
     validation: ValidationReceipt
     clock: Literal["perf_counter_ns"]
     timing_scope: TimingScope
@@ -169,9 +182,13 @@ class BenchmarkReceipt:
             raise ValueError("benchmark evidence requires matched validation")
         if self.case_id != self.validation.case_id:
             raise ValueError("benchmark and validation case must match")
+        if self.accelerator_id != self.validation.accelerator_id:
+            raise ValueError("benchmark and validation accelerator must match")
 
     def to_dict(self) -> dict[str, object]:
-        return asdict(self)
+        data = asdict(self)
+        data["content_sha256"] = hashlib.sha256(_json(data).encode()).hexdigest()
+        return data
 
     def to_json(self) -> str:
         return _json(self.to_dict())

@@ -1,6 +1,6 @@
 [project]
 name = "raddle"
-version = "0.2.0"
+version = "0.3.0"
 description = "Inspectable acceleration contracts and validation for scientific computing"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -47,6 +47,6 @@ testpaths = ["tests"]
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.2.0"
+version = "0.3.0"
 version_files = ["pyproject.toml:version"]
 update_changelog_on_bump = true

@@ -11,6 +11,7 @@ from raddle import __version__
 from raddle.cli import main
 from raddle.contracts import (
     BenchmarkReceipt,
+    CaseDescriptor,
     Synchronization,
     TimingScope,
     TransferInclusion,
@@ -33,7 +34,10 @@ from raddle.registry import get_accelerator, list_accelerators
 
 
 def test_registry_and_descriptor() -> None:
-    assert [item.id for item in list_accelerators()] == ["orbit.two_body_rk4"]
+    assert [item.id for item in list_accelerators()] == [
+        "orbit.two_body_rk4",
+        "stats.bootstrap",
+    ]
     assert get_accelerator(DESCRIPTOR.id).descriptor is DESCRIPTOR
     with pytest.raises(KeyError):
         get_accelerator("fixture.sum_squares")
@@ -55,6 +59,7 @@ def test_registry_and_descriptor() -> None:
 
 def test_cases_are_deterministic_and_independent() -> None:
     for definition in DESCRIPTOR.cases:
+        assert isinstance(definition, CaseDescriptor)
         first = case(definition.id)
         second = case(definition.id)
         np.testing.assert_array_equal(first.initial_states, second.initial_states)
@@ -125,7 +130,8 @@ def test_circular_orbit_physical_sanity() -> None:
 def test_benchmark_receipt_and_private_provenance() -> None:
     receipt = benchmark("circular.small", repeat=2, warmup=0)
     assert isinstance(receipt, BenchmarkReceipt)
-    assert receipt.schema_version == receipt.validation.schema_version == 2
+    assert receipt.schema_version == 3
+    assert receipt.validation.schema_version == 2
     assert receipt.validation.status == "matched"
     assert len(receipt.baseline_times_ns) == len(receipt.candidate_times_ns) == 2
     assert all(
@@ -150,7 +156,8 @@ def test_cli(capsys: CaptureFixture[str]) -> None:
     assert "orbit.two_body_rk4" in capsys.readouterr().out
     assert main(["list", "--json"]) == 0
     assert [item["id"] for item in json.loads(capsys.readouterr().out)] == [
-        DESCRIPTOR.id
+        DESCRIPTOR.id,
+        "stats.bootstrap",
     ]
     assert main(["inspect", DESCRIPTOR.id, "--json"]) == 0
     inspection = json.loads(capsys.readouterr().out)
