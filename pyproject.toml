@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
 authors = [{ name = "Raddle" }]
-dependencies = []
+dependencies = ["numpy>=2,<3"]
 
 [project.scripts]
 raddle = "raddle.cli:main"
