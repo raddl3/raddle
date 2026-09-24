@@ -16,7 +16,7 @@ requires = ["uv_build==0.8.15"]
 build-backend = "uv_build"
 
 [dependency-groups]
-dev = ["bandit>=1.8,<2", "commitizen>=4,<5", "mypy>=1.17,<2", "pytest>=8,<9", "pytest-cov>=6,<8", "ruff>=0.12,<1"]
+dev = ["bandit>=1.8,<2", "commitizen>=4,<5", "mypy>=1.17,<3", "pytest>=8,<9", "pytest-cov>=6,<8", "ruff>=0.12,<1"]
 
 [tool.uv]
 default-groups = ["dev"]
