@@ -18,6 +18,8 @@ tasks:
     cmd: uv run --frozen mypy
   test:
     cmd: uv run --frozen pytest --cov=raddle --cov-report=term-missing
+  evidence:
+    cmd: uv run --frozen python -m raddle.evidence src/raddle/receipts
   security:
     cmds:
       - uv run --frozen bandit -q -r src
@@ -32,6 +34,7 @@ tasks:
       - task: lint
       - task: typecheck
       - task: test
+      - task: evidence
       - task: security
       - task: config
       - prek run --all-files
