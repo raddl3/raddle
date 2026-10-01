@@ -10,3 +10,4 @@
 ### Fix
 
 - Reject a missing external reference result with a runtime error.
+- Read historical artifact wheels against their recorded Raddle version.

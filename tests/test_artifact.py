@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from pytest import MonkeyPatch
 
-from raddle import orbit
+from raddle import __version__, orbit
 from raddle.artifact import (
     _check_candidate_wheel,
     _external_candidate_wheel,
@@ -109,6 +109,17 @@ def test_mismatched_candidate_cannot_create_artifact(
     assert not output.exists()
 
 
+def test_fixture_readback_after_raddle_upgrade(
+    tmp_path: Path, wheel: Path, monkeypatch: MonkeyPatch
+) -> None:
+    output = tmp_path / "historical"
+    manifest = create_artifact("circular.small", wheel, output, repeat=1, warmup=0)
+    monkeypatch.setattr("raddle.artifact.__version__", "future-version")
+    assert read_artifact(output) == manifest
+    with pytest.raises(ValueError, match="Raddle version"):
+        create_artifact("circular.small", wheel, tmp_path / "new", repeat=1)
+
+
 def test_external_candidate_source_can_live_in_workload_wheel(
     tmp_path: Path, wheel: Path
 ) -> None:
@@ -199,7 +210,7 @@ def test_external_gpu_receipt_accepts_generic_case_and_float32() -> None:
 
 
 def test_generic_external_artifact_round_trip_and_legacy_manifest(
-    tmp_path: Path, wheel: Path
+    tmp_path: Path, wheel: Path, monkeypatch: MonkeyPatch
 ) -> None:
     upstream_revision = "a" * 40
     case = ExternalCaseDescriptor("external.tiny", {"shape": [2, 2]})
@@ -263,7 +274,7 @@ def test_generic_external_artifact_round_trip_and_legacy_manifest(
         validation_method="upstream tolerance",
         profile={"profiler": "test", "top": [{"function": "reference"}]},
         dependencies={
-            "raddle": "0.3.0",
+            "raddle": __version__,
             "candidate-workload": "0.1.0",
             "upstream": upstream_revision,
         },
@@ -287,6 +298,8 @@ def test_generic_external_artifact_round_trip_and_legacy_manifest(
     assert artifact.precision == "float64"
     assert artifact.workload == asdict(case)
     assert artifact.reproduce == ("raddle-bench reproduce --task external.tiny",)
+    monkeypatch.setattr("raddle.artifact.__version__", "future-version")
+    assert read_artifact(output) == artifact
     manifest_path = output / "manifest.json"
     legacy = json.loads(manifest_path.read_text(encoding="utf-8"))
     legacy.pop("precision")

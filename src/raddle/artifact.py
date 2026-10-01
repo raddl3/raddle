@@ -60,7 +60,7 @@ def _sha256(path: Path) -> str:
         return hashlib.file_digest(source, "sha256").hexdigest()
 
 
-def _check_wheel(path: Path) -> None:
+def _check_wheel(path: Path, version: str) -> None:
     if path.suffix != ".whl":
         raise ValueError("artifact requires a Raddle wheel")
     try:
@@ -80,10 +80,7 @@ def _check_wheel(path: Path) -> None:
         zipfile.BadZipFile,
     ) as error:
         raise ValueError("invalid Raddle wheel") from error
-    if (
-        details.get("Name", "").lower() != "raddle"
-        or details.get("Version") != __version__
-    ):
+    if details.get("Name", "").lower() != "raddle" or details.get("Version") != version:
         raise ValueError("wheel does not match this Raddle version")
 
 
@@ -108,7 +105,7 @@ def create_artifact(
         raise ValueError(f"artifact output already exists: {output}")
     if type(repeat) is not int or repeat <= 0 or type(warmup) is not int or warmup < 0:
         raise ValueError("repeat must be positive and warmup nonnegative")
-    _check_wheel(wheel)
+    _check_wheel(wheel, __version__)
     _check_runtime_matches_wheel(wheel)
     inputs = orbit.case(case_id)
     for _ in range(warmup):
@@ -243,7 +240,7 @@ def _read_fixture_artifact(path: Path) -> AcceleratorArtifact:
         or _sha256(receipt_path) != manifest.benchmark_sha256
     ):
         raise ValueError("artifact file digest mismatch")
-    _check_wheel(wheel)
+    _check_wheel(wheel, baseline.provenance.raddle_version)
     receipt = read_receipt(receipt_path)
     if (
         receipt["accelerator_id"] != manifest.accelerator_id
@@ -254,7 +251,6 @@ def _read_fixture_artifact(path: Path) -> AcceleratorArtifact:
         or receipt["baseline"] != asdict(manifest.reference)
         or receipt["repeat"] != baseline.repeat
         or receipt["warmup"] != baseline.warmup
-        or receipt["provenance"]["raddle_version"] != __version__
         or asdict(baseline.provenance) != receipt["provenance"] | {"gpu": None}
         or receipt["timing_scope"] != "end_to_end"
     ):
@@ -374,7 +370,7 @@ def create_external_artifact(
     if not isinstance(inputs, dict) or inputs.get("case") != case_data:
         raise ValueError("inputs must identify the canonical case")
     inputs_bytes = (_json(inputs) + "\n").encode("utf-8")
-    _check_wheel(raddle_wheel)
+    _check_wheel(raddle_wheel, __version__)
     _check_runtime_matches_wheel(raddle_wheel)
     candidate_wheel = _external_candidate_wheel(
         raddle_wheel, workload_wheel, candidate_package, workload_package
@@ -617,7 +613,9 @@ def _read_external_artifact(path: Path) -> ExternalAcceleratorArtifact:
     ):
         if _sha256(path / filename) != digest:
             raise ValueError("artifact file digest mismatch")
-    _check_wheel(path / manifest.wheel_file)
+    _check_wheel(
+        path / manifest.wheel_file, manifest.baseline.provenance.raddle_version
+    )
     candidate_wheel = _external_candidate_wheel(
         path / manifest.wheel_file,
         path / manifest.workload_wheel_file,
@@ -681,7 +679,8 @@ def _read_external_artifact(path: Path) -> ExternalAcceleratorArtifact:
         or not manifest.validation_method
         or not manifest.reference_source_url.startswith("https://")
         or not manifest.candidate_source_member.endswith(".py")
-        or manifest.baseline.provenance.raddle_version != __version__
+        or manifest.baseline.provenance.raddle_version
+        != manifest.dependencies.get("raddle")
     ):
         raise ValueError("invalid external workload identity")
     descriptor = AcceleratorDescriptor(
