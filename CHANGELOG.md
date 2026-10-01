@@ -1,3 +1,5 @@
+# Changelog
+
 ## v0.4.0 (2026-10-01)
 
 ### Feat
@@ -8,7 +10,3 @@
 ### Fix
 
 - Reject a missing external reference result with a runtime error.
-
-# Changelog
-
-Changes are recorded here by Commitizen when releases begin.
