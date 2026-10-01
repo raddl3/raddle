@@ -41,6 +41,14 @@ class CaseDescriptor:
 
 
 @dataclass(frozen=True)
+class ExternalCaseDescriptor:
+    """Identity and workload-specific parameters for an external case."""
+
+    id: str
+    parameters: dict[str, object]
+
+
+@dataclass(frozen=True)
 class BootstrapCaseDescriptor:
     id: str
     sample_size: int
@@ -59,10 +67,10 @@ class AcceleratorDescriptor:
     candidates: tuple[ImplementationIdentity, ...]
     input_contract: str
     output_contract: str
-    precision: Literal["float64"]
+    precision: str
     supported_environment: str
     validation_policy: ValidationPolicy
-    cases: tuple[CaseDescriptor | BootstrapCaseDescriptor, ...]
+    cases: tuple[CaseDescriptor | BootstrapCaseDescriptor | ExternalCaseDescriptor, ...]
     algorithm: str | None = None
 
     @property
@@ -85,7 +93,9 @@ class GPUProvenance:
     gpu_count_used: int
     cuda_runtime_version: int
     cuda_driver_version: int
-    cupy_version: str
+    cupy_version: str | None = None
+    backend: str = "cupy"
+    backend_version: str | None = None
 
 
 @dataclass(frozen=True)
@@ -138,7 +148,7 @@ class ValidationReceipt:
     case_id: str
     reference: ImplementationIdentity
     candidate: ImplementationIdentity
-    precision: Literal["float64"]
+    precision: str
     policy: ValidationPolicy
     status: Literal["matched", "mismatched"]
     compared_values: int
@@ -192,3 +202,88 @@ class BenchmarkReceipt:
 
     def to_json(self) -> str:
         return _json(self.to_dict())
+
+
+@dataclass(frozen=True)
+class ReferenceBaseline:
+    invocation: str
+    clock: Literal["perf_counter_ns"]
+    warmup: int
+    repeat: int
+    times_ns: tuple[int, ...]
+    median_ns: float
+    provenance: ExecutionProvenance
+
+
+@dataclass(frozen=True)
+class AcceleratorArtifact:
+    schema_version: Literal[1]
+    fixture: Literal[True]
+    accelerator_id: str
+    accelerator_version: str
+    case_id: str
+    reference: ImplementationIdentity
+    candidate: ImplementationIdentity
+    reference_invocation: str
+    candidate_invocation: str
+    input_domain: str
+    validation_method: str
+    baseline: ReferenceBaseline
+    benchmark_file: str
+    benchmark_sha256: str
+    wheel_file: str
+    wheel_sha256: str
+    reproduce: tuple[str, ...]
+
+    def to_json(self) -> str:
+        data = asdict(self)
+        data["content_sha256"] = hashlib.sha256(_json(data).encode()).hexdigest()
+        return _json(data)
+
+
+@dataclass(frozen=True)
+class ExternalAcceleratorArtifact:
+    """A measured external case; schema 1 remains the orbit fixture format."""
+
+    schema_version: Literal[2]
+    fixture: Literal[False]
+    accelerator_id: str
+    accelerator_version: str
+    case_id: str
+    workload: dict[str, object]
+    reference: ImplementationIdentity
+    candidate: ImplementationIdentity
+    policy: ValidationPolicy
+    reference_invocation: str
+    candidate_invocation: str
+    input_domain: str
+    output_contract: str
+    validation_method: str
+    reference_source_url: str
+    reference_source_revision: str
+    candidate_source_revision: str
+    candidate_source_member: str
+    candidate_package_name: str
+    candidate_package_version: str
+    dependencies: dict[str, str]
+    profile: dict[str, object]
+    baseline: ReferenceBaseline
+    inputs_file: str
+    inputs_sha256: str
+    lock_file: str
+    lock_sha256: str
+    benchmark_file: str
+    benchmark_sha256: str
+    wheel_file: str
+    wheel_sha256: str
+    workload_package_name: str
+    workload_package_version: str
+    workload_wheel_file: str
+    workload_wheel_sha256: str
+    reproduce: tuple[str, ...]
+    precision: str = "float64"
+
+    def to_json(self) -> str:
+        data = asdict(self)
+        data["content_sha256"] = hashlib.sha256(_json(data).encode()).hexdigest()
+        return _json(data)

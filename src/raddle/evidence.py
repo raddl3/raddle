@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from raddle.contracts import (
+    AcceleratorDescriptor,
     BenchmarkReceipt,
     ExecutionProvenance,
     GPUProvenance,
@@ -48,9 +49,18 @@ def _fields(model: type[Any]) -> set[str]:
 def _provenance(data: Any) -> None:
     _keys(data, _fields(ExecutionProvenance))
     if data["gpu"] is not None:
-        _keys(data["gpu"], _fields(GPUProvenance))
+        legacy = _fields(GPUProvenance) - {"backend", "backend_version"}
+        if not isinstance(data["gpu"], dict) or set(data["gpu"]) not in (
+            legacy,
+            _fields(GPUProvenance),
+        ):
+            raise ValueError("unexpected GPU provenance fields")
         if not isinstance(data["gpu"]["model"], str) or not data["gpu"]["model"]:
             raise ValueError("GPU model is required")
+        if "backend" in data["gpu"] and (
+            not isinstance(data["gpu"]["backend"], str) or not data["gpu"]["backend"]
+        ):
+            raise ValueError("GPU backend is required")
     for name in (
         "python_version",
         "raddle_version",
@@ -67,7 +77,9 @@ def _provenance(data: Any) -> None:
         raise ValueError("invalid CPU count")
 
 
-def check_receipt(data: Any) -> dict[str, Any]:
+def check_receipt(
+    data: Any, descriptor: AcceleratorDescriptor | None = None
+) -> dict[str, Any]:
     """Reject malformed evidence; the digest detects casual edits, not forgery."""
     _keys(data, _fields(BenchmarkReceipt) | {"content_sha256"})
     digest = data.pop("content_sha256")
@@ -83,8 +95,10 @@ def check_receipt(data: Any) -> dict[str, Any]:
             or data["setup_included"] is not False
         ):
             raise ValueError("unsupported benchmark schema or timing")
-        registered = get_accelerator(data["accelerator_id"])
-        descriptor = registered.descriptor
+        if descriptor is None:
+            descriptor = get_accelerator(data["accelerator_id"]).descriptor
+        if data["accelerator_id"] != descriptor.id:
+            raise ValueError("accelerator identity mismatch")
         if data["accelerator_version"] != descriptor.version:
             raise ValueError("accelerator version mismatch")
         case = next(item for item in descriptor.cases if item.id == data["case_id"])
@@ -126,7 +140,7 @@ def check_receipt(data: Any) -> dict[str, Any]:
             raise ValueError("invalid timing scope or transfer policy")
         if data["baseline_synchronization"] != "synchronous_call":
             raise ValueError("invalid baseline synchronization")
-        gpu = validation["candidate"]["id"] == "cupy.vectorized"
+        gpu = data["provenance"]["gpu"] is not None
         if data["candidate_synchronization"] != (
             "cuda_current_stream_pre_post" if gpu else "synchronous_call"
         ):
@@ -137,8 +151,6 @@ def check_receipt(data: Any) -> dict[str, Any]:
             else "not_applicable"
         ):
             raise ValueError("transfer policy mismatch")
-        if gpu != (data["provenance"]["gpu"] is not None):
-            raise ValueError("GPU provenance mismatch")
         if (
             type(data["warmup"]) is not int
             or data["warmup"] < 0
@@ -185,12 +197,14 @@ def check_receipt(data: Any) -> dict[str, Any]:
     return cast(dict[str, Any], data)
 
 
-def read_receipt(path: Path) -> dict[str, Any]:
+def read_receipt(
+    path: Path, descriptor: AcceleratorDescriptor | None = None
+) -> dict[str, Any]:
     data: Any = json.loads(
         path.read_text(encoding="utf-8"),
         parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),
     )
-    checked = check_receipt(data)
+    checked = check_receipt(data, descriptor)
     if path.read_text(encoding="utf-8") != _json(checked) + "\n":
         raise ValueError("receipt is not canonical JSON")
     return checked

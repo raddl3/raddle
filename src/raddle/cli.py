@@ -7,6 +7,7 @@ from pathlib import Path
 
 from raddle import __version__
 from raddle.agent import init as agent_init
+from raddle.artifact import create_artifact
 from raddle.contracts import TimingScope
 from raddle.cupy_backend import BackendUnavailable
 from raddle.registry import get_accelerator, list_accelerators
@@ -44,6 +45,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     benchmark_parser.add_argument("--baseline", default="python.scalar")
     benchmark_parser.add_argument("--output", type=Path)
+    artifact_parser = commands.add_parser(
+        "artifact", help="Package a validated orbit fixture with evidence"
+    )
+    artifact_parser.add_argument("--case", required=True)
+    artifact_parser.add_argument("--wheel", required=True, type=Path)
+    artifact_parser.add_argument("--output", required=True, type=Path)
+    artifact_parser.add_argument("--repeat", type=int, default=3)
+    artifact_parser.add_argument("--warmup", type=int, default=1)
     args = parser.parse_args(argv)
     if args.command == "agent":
         try:
@@ -64,6 +73,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             for listed in products:
                 print(f"{listed.id}  {listed.name}  v{listed.version}")
+        return 0
+    if args.command == "artifact":
+        try:
+            create_artifact(
+                args.case,
+                args.wheel,
+                args.output,
+                args.repeat,
+                args.warmup,
+            )
+        except (KeyError, OSError, ValueError) as error:
+            parser.error(str(error))
+        print(args.output / "manifest.json")
         return 0
     try:
         product = get_accelerator(args.accelerator_id)
