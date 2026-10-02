@@ -9,15 +9,28 @@ optional CuPy CUDA candidate.
 returning the full replicate distribution and percentile interval from a
 shared chunked resampling plan.
 
-For an existing project, run `uvx raddle agent init` from its root to install
-the provider-neutral Raddle acceleration skill. Inspect a trusted workload,
+Raddle is currently distributed from public Git, not PyPI. Install the pinned
+public tool with Python 3.12, then initialize from your existing project root:
+
+```sh
+uv tool install --python 3.12 git+https://github.com/raddl3/raddle@62ce3c025c747f4793b2a3bd373c8c1afa81815b
+raddle agent init
+```
+
+This installs the provider-neutral Raddle acceleration skill. Inspect a trusted workload,
 review the acceleration plan, then let a coding agent or engineer build an
 isolated candidate worktree. Source and data stay in your environment; no
 upload to Raddle is required. The kickoff prompt is optional guidance.
 Codex uses `.agents/skills/`; Claude Code uses `.claude/skills/`. Use
 `--agent claude` or `--agent codex` when both are present, `--target PATH` to
 name a project root, and `--dry-run` to preview files. Existing modified skill
-files are never overwritten. For direct Python library use, `uv add raddle`.
+files are never overwritten. For direct Python library use, run:
+
+```sh
+uv add git+https://github.com/raddl3/raddle@62ce3c025c747f4793b2a3bd373c8c1afa81815b
+```
+
+The project must use Python 3.12 or newer; use `uv python pin 3.12` if needed.
 See [the project onboarding guide](docs/guides/accelerate.md) for local GPU,
 existing SSH GPU, and no-GPU paths, and the
 [proposed SSH executor design](docs/guides/ssh-evaluation.md).
@@ -56,7 +69,12 @@ another host; nanosecond timings will differ.
 See [the artifact contract](docs/concepts/accelerator.md).
 
 On a Linux CUDA 12 host with a compatible NVIDIA driver, install the optional
-backend and its CUDA components with `uv add "raddle[cuda12]"`.
+backend and its CUDA components from the same pinned public source:
+
+```sh
+uv add "raddle[cuda12] @ git+https://github.com/raddl3/raddle@62ce3c025c747f4793b2a3bd373c8c1afa81815b"
+```
+
 `raddle inspect orbit.two_body_rk4` distinguishes
 supported implementations from those available on the current host. Select
 the GPU with `--implementation cupy.vectorized`. For benchmarks, choose

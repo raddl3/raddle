@@ -5,16 +5,25 @@ environment; no upload to Raddle is required. A coding agent or engineer
 inspects the project and creates candidates. Initialization installs guidance,
 not an autonomous optimizer or a workload discovery service.
 
-1. **Add Raddle to your project.** From the existing repository root, run
-   `uvx raddle agent init`. Codex uses `.agents/skills/raddle-accelerate/`;
+1. **Add Raddle to your project.** Raddle is distributed from public Git, not
+   PyPI. Install the pinned public tool, then initialize from your repository root:
+
+   ```sh
+   uv tool install --python 3.12 git+https://github.com/raddl3/raddle@62ce3c025c747f4793b2a3bd373c8c1afa81815b
+   raddle agent init
+   ```
+
+   The tool is separate from your project environment. Codex uses `.agents/skills/raddle-accelerate/`;
    Claude Code uses `.claude/skills/raddle-accelerate/`. Choose with
    `--agent codex` or `--agent claude`; preview with `--dry-run`. Modified
    installed files are never overwritten. For library integration use
-   `uv add raddle`. The optional kickoff text is also installed in `KICKOFF.md`.
+   `uv add git+https://github.com/raddl3/raddle@62ce3c025c747f4793b2a3bd373c8c1afa81815b`. Your project needs Python 3.12+; pin it with
+   `uv python pin 3.12` if needed. On Linux CUDA 12, install the backend with
+   `uv add "raddle[cuda12] @ git+https://github.com/raddl3/raddle@62ce3c025c747f4793b2a3bd373c8c1afa81815b"`. The optional kickoff text is also installed in `KICKOFF.md`.
 2. **Inspect the workload.** Use trusted project test and profiling commands.
    Record the reference calculation, inputs, outputs, numerical method,
    representative size, CPU baseline, and measured hotspot. Use
-   `uvx raddle list` and `uvx raddle inspect <id> --json` to compare contracts.
+   `raddle list` and `raddle inspect <id> --json` to compare contracts.
    These inspect public accelerators, not arbitrary project code.
 3. **Review the acceleration plan.** Before candidate edits, review the proposed
    change, semantics, tolerances, cases, timing boundary (including setup and
