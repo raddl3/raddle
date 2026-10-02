@@ -55,3 +55,45 @@ def test_agent_init_ambiguous_target(tmp_path: Path, monkeypatch: MonkeyPatch) -
         init(None, None)
     result = init(tmp_path, "claude")
     assert str(tmp_path / ".claude/skills/raddle-accelerate/SKILL.md") in result
+
+
+@pytest.mark.parametrize(
+    "agent, directory", [("codex", ".agents"), ("claude", ".claude")]
+)
+def test_recursive_install_preflights_all_conflicts(
+    tmp_path: Path, agent: str, directory: str
+) -> None:
+    folder = tmp_path / directory / "skills/raddle-accelerate"
+    init(tmp_path, agent, True)
+    assert not folder.exists()
+    init(tmp_path, agent)
+    reference = folder / "references/external-workload.md"
+    assert reference.is_file()
+    assert (folder / "references/artifacts.md").is_file()
+    assert (folder / "references/evaluation.md").is_file()
+    reference.write_text("my adapter instructions")
+    (folder / "KICKOFF.md").unlink()
+    for dry_run in (True, False):
+        with pytest.raises(ValueError, match="refusing to overwrite"):
+            init(tmp_path, agent, dry_run)
+        assert not (folder / "KICKOFF.md").exists()
+        assert reference.read_text() == "my adapter instructions"
+
+
+def test_install_refuses_symlink_destination(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (tmp_path / ".agents").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(ValueError, match="symlink"):
+        init(tmp_path, "codex")
+    assert not list(outside.iterdir())
+
+
+def test_install_preflights_directory_conflict(tmp_path: Path) -> None:
+    folder = tmp_path / ".agents/skills/raddle-accelerate"
+    folder.mkdir(parents=True)
+    (folder / "references").write_text("user-owned file")
+    with pytest.raises(ValueError, match="installed directory"):
+        init(tmp_path, "codex")
+    assert not (folder / "SKILL.md").exists()
+    assert (folder / "references").read_text() == "user-owned file"

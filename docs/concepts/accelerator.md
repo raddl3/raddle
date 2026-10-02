@@ -35,7 +35,7 @@ The committed receipts under `src/raddle/receipts/` are checked by `task
 evidence`. A benchmark claim is derived from a checked receipt, including its
 case, baseline, candidate, timing scope, hardware, and validation result.
 
-## Stage 1 artifact
+## Built-in fixture artifact
 
 `raddle artifact` packages a single `orbit.two_body_rk4` canonical case as an
 explicit fixture. It measures the scalar reference first, then executes and
@@ -53,3 +53,19 @@ methodology, raw and summary timings, hardware, and software provenance. The
 wheel hash identifies packaged executable bytes. Artifact creation checks the
 wheel's Python sources against the running package. This fixture is not evidence from a
 customer workload. See [ADR-0006](../architecture/ADR-0006-accelerator-artifact.md).
+
+
+## External Accelerator artifacts
+
+`create_external_artifact` packages workload-owned reference/candidate callables
+under an `AcceleratorDescriptor` and `ExternalCaseDescriptor`. Schema 2 records
+canonical inputs, reference Git identity, candidate source hash/member, package
+identities, dependency lockfile, profile, validation, raw timings, and both wheels.
+`read_artifact` checks their hashes and cross-file identities, including historical
+artifacts created by earlier Raddle versions.
+
+Forge acceptance precedes packaging: verify `incumbent_source()`, build the wheel
+from those bytes, and compare the read-back manifest to the incumbent. Packaging
+remeasures and validates; its receipt describes that separate run.
+See the [external integration guide](../guides/external-workload.md) and
+[complete executable example](../../examples/external-workload/README.md).

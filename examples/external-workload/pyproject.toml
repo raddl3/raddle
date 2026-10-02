@@ -1,0 +1,13 @@
+[project]
+name = "external-workload"
+version = "0.1.0"
+description = "Raddle integration example; not a published performance claim"
+requires-python = ">=3.12"
+dependencies = ["raddle"]
+
+[tool.uv.sources]
+raddle = { path = "../..", editable = true }
+
+[build-system]
+requires = ["uv_build==0.12.17"]
+build-backend = "uv_build"

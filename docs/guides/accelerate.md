@@ -29,8 +29,9 @@ not an autonomous optimizer or a workload discovery service.
    change, semantics, tolerances, cases, timing boundary (including setup and
    transfers), compute, and exact commands. Static inspection and GPU paths
    without GPU measurements must be labeled **unmeasured**. No numerical GPU
-   speedup estimates. If a compatible accelerator or adapter is missing, return
-   a bounded Forge candidate report and identify the integration work.
+   speedup estimates. If no adapter exists, use the [external integration guide](external-workload.md)
+   and [complete example](../../examples/external-workload/README.md) to define
+   the reference and workload-owned Forge callbacks as part of the approved plan.
 4. **Build and verify.** After plan approval, create an isolated Git worktree
    from the agreed revision, for example:
    `git worktree add -b raddle/candidate ../project-raddle-candidate HEAD`.
@@ -44,16 +45,21 @@ Evaluate on a supported local GPU or [existing user-controlled remote GPU over
 SSH](ssh-evaluation.md). With no GPU, CPU profiling and planning can continue,
 but GPU paths remain unmeasured. Raddle does not emulate GPUs or provision compute.
 
-Use the workload's existing Forge adapter. Forge builds and validates candidates
+Use the workload's Forge callbacks, implementing the small
+[public callback contract](external-workload.md) when the adapter is missing. Forge builds and validates candidates
 against the reference before it permits benchmarking. Compare the same workload
 and state the timing boundary and environment. Built-in `raddle verify` and
 `raddle benchmark` cover their own canonical cases; their receipts do not prove
 correctness or speedup for your project.
 
 Review validation, provenance, raw timings, and reproduction commands. Failed or
-unmeasured candidates cannot become accepted GPU results. Use the workload's
-existing artifact packaging flow for an accepted candidate and verify it with
+unmeasured candidates cannot become accepted GPU results. Use `create_external_artifact` for the accepted incumbent, following the
+[packaging example](../../examples/external-workload/README.md) and verify it with
 `raddle.artifact.read_artifact`. Packaging requires the existing artifact
 contract, including source/package identities and evidence; it is not a generic
 CLI command for arbitrary repositories. Adoption in the original project is a
 separate user review, not an automatic merge.
+
+To use the expanded skill and example from a checkout before release, run
+`uv sync --frozen`, then `uv run --frozen raddle agent init --target PATH`.
+The pinned public tool above retains its released skill contents.

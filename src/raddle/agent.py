@@ -1,6 +1,7 @@
 """Install the bundled provider-neutral acceleration skill into a local project."""
 
 from importlib.resources import files
+from importlib.resources.abc import Traversable
 from pathlib import Path
 
 
@@ -33,15 +34,29 @@ def init(target: Path | None, agent: str | None, dry_run: bool = False) -> str:
         / "raddle-accelerate"
     )
     source = files("raddle").joinpath("skills", "raddle-accelerate")
-    contents = {
-        name: source.joinpath(name).read_text(encoding="utf-8")
-        for name in ("SKILL.md", "KICKOFF.md")
-    }
+
+    def resources(directory: Traversable, prefix: str = "") -> dict[str, bytes]:
+        result: dict[str, bytes] = {}
+        for entry in sorted(directory.iterdir(), key=lambda item: item.name):
+            name = prefix + entry.name
+            if entry.is_dir():
+                result.update(resources(entry, name + "/"))
+            else:
+                result[name] = entry.read_bytes()
+        return result
+
+    contents = resources(source)
+    for name in contents:
+        path = folder / name
+        if any(part.is_symlink() for part in (path, *path.parents) if part != root):
+            raise ValueError(f"refusing to install through a symlink: {path}")
+        if any(part.exists() and not part.is_dir() for part in path.parents):
+            raise ValueError(f"refusing to replace an installed directory: {path}")
     conflicts = [
         folder / name
         for name, content in contents.items()
         if (folder / name).exists()
-        and (folder / name).read_text(encoding="utf-8") != content
+        and (not (folder / name).is_file() or (folder / name).read_bytes() != content)
     ]
     if conflicts:
         raise ValueError(
@@ -53,8 +68,8 @@ def init(target: Path | None, agent: str | None, dry_run: bool = False) -> str:
         if not path.exists():
             written.append(path)
             if not dry_run:
-                folder.mkdir(parents=True, exist_ok=True)
-                path.write_text(content, encoding="utf-8")
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
     action = "Would write" if dry_run else "Wrote"
     details = (
         "\n".join(f"{action}: {path}" for path in written)
@@ -65,5 +80,5 @@ def init(target: Path | None, agent: str | None, dry_run: bool = False) -> str:
         "Next: inspect a trusted workload with your coding agent or engineer.\n"
         "Review the acceleration plan before candidate work in an isolated worktree.\n"
         "Source and data stay in your environment; no upload to Raddle is required.\n"
-        f"\nOptional kickoff prompt:\n{contents['KICKOFF.md']}"
+        f"\nOptional kickoff prompt:\n{contents['KICKOFF.md'].decode('utf-8')}"
     )
