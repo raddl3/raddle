@@ -1,9 +1,9 @@
 Use the Raddle acceleration skill in this repository.
 
-Profile the existing project and identify one measured repetitive numerical bottleneck. Preserve the reference implementation and existing correctness tests.
+Profile the existing project using trusted workload commands and preserve its reference calculation and correctness tests. Keep source and data in my environment; no upload to Raddle is required.
 
-If a compatible Raddle accelerator exists, integrate it using the smallest safe change. Validate against the reference and benchmark the same representative workload before and after. Keep the integration only if validation passes and the measured result is worthwhile.
+First return an acceleration plan for my review: the measured hotspot (or label static inspection as unmeasured), reference semantics, proposed candidate, validation criteria, representative workload, timing boundary, suitable compute, and exact commands. Stop before candidate edits until I approve the plan.
 
-If no accelerator matches, return a Raddle Forge candidate report instead of inventing one.
+After approval, have the coding agent or engineer build the candidate in an isolated Git worktree. Evaluate on a local GPU or my existing SSH-accessible GPU machine. Without GPU measurements, label GPU paths unmeasured and do not claim a numerical GPU speedup.
 
-Return the exact workload, baseline timing, accelerated timing, speedup, validation result, provenance, changed files, and reproduction commands.
+Use the workload's Forge validation gate before benchmarking. If a compatible accelerator or workload adapter is missing, return a bounded Forge candidate report and the missing integration work. Return validated evidence, provenance, changed files, and reproduction commands; package and read back an accepted Accelerator artifact through the existing workload flow before proposing adoption.

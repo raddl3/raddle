@@ -1,4 +1,3 @@
-import hashlib
 from pathlib import Path
 
 import pytest
@@ -26,9 +25,14 @@ def test_agent_init_safe_idempotent_and_prompt(
     assert "Wrote:" in first
     assert (folder / "SKILL.md").read_text().startswith("---\nname: raddle-accelerate")
     assert "Profile the existing project" in (folder / "KICKOFF.md").read_text()
-    assert hashlib.sha256((folder / "KICKOFF.md").read_bytes()).hexdigest() == (
-        "39f9b4554f7ac8cd8e5f61c9efd88b32aebce1b27355168b36fd1f022ee64611"
-    )
+    skill = (folder / "SKILL.md").read_text()
+    prompt = (folder / "KICKOFF.md").read_text()
+    assert "stop for review" in skill
+    assert "isolated Git worktree" in prompt
+    assert "unmeasured" in prompt
+    assert "Forge validation gate before benchmarking" in prompt
+    assert "Next: inspect a trusted workload" in first
+    assert "no upload to Raddle is required" in first
     assert first.endswith((folder / "KICKOFF.md").read_text())
     assert "Already installed" in init(None, None)
     assert source.read_text() == "print('untouched')\n"

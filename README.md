@@ -10,11 +10,17 @@ returning the full replicate distribution and percentile interval from a
 shared chunked resampling plan.
 
 For an existing project, run `uvx raddle agent init` from its root to install
-the provider-neutral Raddle acceleration skill and print a kickoff prompt.
+the provider-neutral Raddle acceleration skill. Inspect a trusted workload,
+review the acceleration plan, then let a coding agent or engineer build an
+isolated candidate worktree. Source and data stay in your environment; no
+upload to Raddle is required. The kickoff prompt is optional guidance.
 Codex uses `.agents/skills/`; Claude Code uses `.claude/skills/`. Use
 `--agent claude` or `--agent codex` when both are present, `--target PATH` to
 name a project root, and `--dry-run` to preview files. Existing modified skill
 files are never overwritten. For direct Python library use, `uv add raddle`.
+See [the project onboarding guide](docs/guides/accelerate.md) for local GPU,
+existing SSH GPU, and no-GPU paths, and the
+[proposed SSH executor design](docs/guides/ssh-evaluation.md).
 
 ```sh
 uv sync --frozen
