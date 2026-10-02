@@ -12,7 +12,7 @@ reproducible evidence.
 Raddle is distributed from public Git, not PyPI. With [uv](https://docs.astral.sh/uv/):
 
 ```sh
-uv tool install --python 3.12 git+https://github.com/raddl3/raddle@62ce3c025c747f4793b2a3bd373c8c1afa81815b
+uv tool install --python 3.12 git+https://github.com/raddl3/raddle@8eeb7db8c8522a692c9ae4d5477d1f1be75da272
 raddle agent init
 ```
 
@@ -51,7 +51,7 @@ their own evidence and timing scope.
 For library use in an existing Python 3.12+ project:
 
 ```sh
-uv add git+https://github.com/raddl3/raddle@62ce3c025c747f4793b2a3bd373c8c1afa81815b
+uv add git+https://github.com/raddl3/raddle@8eeb7db8c8522a692c9ae4d5477d1f1be75da272
 ```
 
 - [`ForgeContract` / `ForgeCampaign`](src/raddle/forge.py): immutable campaign
@@ -68,8 +68,7 @@ No plugin registry is needed: supply build, validate, and benchmark callbacks to
 `ForgeCampaign.evaluate`. The [integration guide](docs/guides/external-workload.md)
 shows the complete callback and accepted-artifact path using public APIs.
 
-The pinned installation above is the existing public release. To run the new
-example and install this checkout's expanded skill before its release:
+To run the complete example from the public checkout:
 
 ```sh
 git clone https://github.com/raddl3/raddle.git

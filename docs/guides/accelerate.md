@@ -9,7 +9,7 @@ not an autonomous optimizer or a workload discovery service.
    PyPI. Install the pinned public tool, then initialize from your repository root:
 
    ```sh
-   uv tool install --python 3.12 git+https://github.com/raddl3/raddle@62ce3c025c747f4793b2a3bd373c8c1afa81815b
+   uv tool install --python 3.12 git+https://github.com/raddl3/raddle@8eeb7db8c8522a692c9ae4d5477d1f1be75da272
    raddle agent init
    ```
 
@@ -17,9 +17,9 @@ not an autonomous optimizer or a workload discovery service.
    Claude Code uses `.claude/skills/raddle-accelerate/`. Choose with
    `--agent codex` or `--agent claude`; preview with `--dry-run`. Modified
    installed files are never overwritten. For library integration use
-   `uv add git+https://github.com/raddl3/raddle@62ce3c025c747f4793b2a3bd373c8c1afa81815b`. Your project needs Python 3.12+; pin it with
+   `uv add git+https://github.com/raddl3/raddle@8eeb7db8c8522a692c9ae4d5477d1f1be75da272`. Your project needs Python 3.12+; pin it with
    `uv python pin 3.12` if needed. On Linux CUDA 12, install the backend with
-   `uv add "raddle[cuda12] @ git+https://github.com/raddl3/raddle@62ce3c025c747f4793b2a3bd373c8c1afa81815b"`. The optional kickoff text is also installed in `KICKOFF.md`.
+   `uv add "raddle[cuda12] @ git+https://github.com/raddl3/raddle@8eeb7db8c8522a692c9ae4d5477d1f1be75da272"`. The optional kickoff text is also installed in `KICKOFF.md`.
 2. **Inspect the workload.** Use trusted project test and profiling commands.
    Record the reference calculation, inputs, outputs, numerical method,
    representative size, CPU baseline, and measured hotspot. Use
@@ -60,6 +60,5 @@ contract, including source/package identities and evidence; it is not a generic
 CLI command for arbitrary repositories. Adoption in the original project is a
 separate user review, not an automatic merge.
 
-To use the expanded skill and example from a checkout before release, run
-`uv sync --frozen`, then `uv run --frozen raddle agent init --target PATH`.
-The pinned public tool above retains its released skill contents.
+To run the example from a public checkout, use `uv sync --frozen` and
+`task example`. The pinned installation above includes the complete bundled skill.
