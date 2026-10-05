@@ -24,14 +24,18 @@ def test_agent_init_safe_idempotent_and_prompt(
     first = init(None, None)
     assert "Wrote:" in first
     assert (folder / "SKILL.md").read_text().startswith("---\nname: raddle-accelerate")
-    assert "Profile the existing project" in (folder / "KICKOFF.md").read_text()
+    assert (
+        "Is this the workload you want accelerated?"
+        in (folder / "KICKOFF.md").read_text()
+    )
     skill = (folder / "SKILL.md").read_text()
     prompt = (folder / "KICKOFF.md").read_text()
-    assert "stop for review" in skill
+    assert "stop for review" in skill.lower()
+    assert "scoping.md" in skill and "ml-inference.md" in skill
     assert "isolated Git worktree" in prompt
     assert "unmeasured" in prompt
     assert "Forge validation gate before benchmarking" in prompt
-    assert "Next: inspect a trusted workload" in first
+    assert "Next: trace one workload" in first
     assert "no upload to Raddle is required" in first
     assert first.endswith((folder / "KICKOFF.md").read_text())
     assert "Already installed" in init(None, None)
@@ -60,17 +64,34 @@ def test_agent_init_ambiguous_target(tmp_path: Path, monkeypatch: MonkeyPatch) -
 @pytest.mark.parametrize(
     "agent, directory", [("codex", ".agents"), ("claude", ".claude")]
 )
+@pytest.mark.parametrize(
+    "reference_name",
+    [
+        "scoping",
+        "opportunities",
+        "ml-inference",
+        "external-workload",
+        "evaluation",
+        "artifacts",
+    ],
+)
 def test_recursive_install_preflights_all_conflicts(
-    tmp_path: Path, agent: str, directory: str
+    tmp_path: Path, agent: str, directory: str, reference_name: str
 ) -> None:
     folder = tmp_path / directory / "skills/raddle-accelerate"
     init(tmp_path, agent, True)
     assert not folder.exists()
     init(tmp_path, agent)
-    reference = folder / "references/external-workload.md"
-    assert reference.is_file()
-    assert (folder / "references/artifacts.md").is_file()
-    assert (folder / "references/evaluation.md").is_file()
+    reference = folder / f"references/{reference_name}.md"
+    for name in (
+        "scoping",
+        "opportunities",
+        "ml-inference",
+        "external-workload",
+        "evaluation",
+        "artifacts",
+    ):
+        assert (folder / f"references/{name}.md").is_file()
     reference.write_text("my adapter instructions")
     (folder / "KICKOFF.md").unlink()
     for dry_run in (True, False):

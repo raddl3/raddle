@@ -9,7 +9,7 @@ not an autonomous optimizer or a workload discovery service.
    PyPI. Install the pinned public tool, then initialize from your repository root:
 
    ```sh
-   uv tool install --python 3.12 git+https://github.com/raddl3/raddle@8eeb7db8c8522a692c9ae4d5477d1f1be75da272
+   uv tool install --python 3.12 git+https://github.com/raddl3/raddle@v0.4.1
    raddle agent init
    ```
 
@@ -17,14 +17,24 @@ not an autonomous optimizer or a workload discovery service.
    Claude Code uses `.claude/skills/raddle-accelerate/`. Choose with
    `--agent codex` or `--agent claude`; preview with `--dry-run`. Modified
    installed files are never overwritten. For library integration use
-   `uv add git+https://github.com/raddl3/raddle@8eeb7db8c8522a692c9ae4d5477d1f1be75da272`. Your project needs Python 3.12+; pin it with
+   `uv add git+https://github.com/raddl3/raddle@v0.4.1`. Your project needs Python 3.12+; pin it with
    `uv python pin 3.12` if needed. On Linux CUDA 12, install the backend with
-   `uv add "raddle[cuda12] @ git+https://github.com/raddl3/raddle@8eeb7db8c8522a692c9ae4d5477d1f1be75da272"`. The optional kickoff text is also installed in `KICKOFF.md`.
-2. **Inspect the workload.** Use trusted project test and profiling commands.
-   Record the reference calculation, inputs, outputs, numerical method,
-   representative size, CPU baseline, and measured hotspot. Use
-   `raddle list` and `raddle inspect <id> --json` to compare contracts.
-   These inspect public accelerators, not arbitrary project code.
+   `uv add "raddle[cuda12] @ git+https://github.com/raddl3/raddle@v0.4.1"`. The optional kickoff text is also installed in `KICKOFF.md`.
+2. **Lock one target, then profile.** A prompt such as "Use Raddle on the inference
+   path" is enough. The skill traces the named invocation and proposes one target:
+   representative case, objective, boundary, trusted reference, included/excluded
+   paths and compute constraints. It asks "Is this the workload you want accelerated?"
+   and stops for approval before profiling, model downloads, credentials or candidates.
+   Unreachable legacy/archived/experimental paths stay excluded. After approval,
+   run trusted tests and profiling only within that boundary. Distinguish measured
+   hotspots from static inspection. Credentials, model downloads and data transfers
+   require explicit approval in their own right.
+   Record `AccelerationTarget` in `ForgeContract(..., target=target)` using the
+   [public integration guide](external-workload.md). The recommended local ledger
+   is `.raddle/campaigns/<id>/forge.jsonl`, alongside candidates and artifacts;
+   it contains the inspectable target/hash. Ignore generated state in Git unless
+   deliberately preserving sanitized evidence. Changed scope needs a new approved
+   target and campaign. Historical campaigns are readable without rewriting them.
 3. **Review the acceleration plan.** Before candidate edits, review the proposed
    change, semantics, tolerances, cases, timing boundary (including setup and
    transfers), compute, and exact commands. Static inspection and GPU paths

@@ -29,7 +29,12 @@ from raddle.contracts import (
     ValidationPolicy,
     ValidationReceipt,
 )
-from raddle.forge import BenchmarkResult, ForgeCampaign, ForgeContract
+from raddle.forge import (
+    AccelerationTarget,
+    BenchmarkResult,
+    ForgeCampaign,
+    ForgeContract,
+)
 
 SIZE = 100_000
 CASE = ExternalCaseDescriptor("integration.square", {"size": SIZE, "rule": "arange"})
@@ -104,10 +109,49 @@ def build(snapshot: Path) -> tuple[object, object]:
     return cast(Runner, module.run), {"status": "built", "loader": "importlib"}
 
 
-def run(output: Path, raddle_wheel: Path) -> ForgeCampaign:
+def run(
+    output: Path, raddle_wheel: Path, *, approve_target: bool = False
+) -> ForgeCampaign:
     if output.exists():
         raise ValueError("use a new output directory for this demonstration")
     root = Path(__file__).resolve().parents[2]
+    # NumPy publishes the full Git identity of the installed reference implementation.
+    revision = "git:" + np.version.git_revision
+    reference_identity = {
+        "implementation": asdict(REFERENCE),
+        "revision": revision,
+        "adapter_sha256": hashlib.sha256(
+            (root / "src/external_workload/__init__.py").read_bytes()
+        ).hexdigest(),
+    }
+    target = AccelerationTarget(
+        target_id="external-square.v1",
+        invocation="external_workload.reference(100000)",
+        representative_case=json.dumps(asdict(CASE), sort_keys=True),
+        objective="warm latency",
+        timing_boundary=(
+            "reference(size), input allocation through output; warm-up excluded"
+        ),
+        trusted_reference=json.dumps(reference_identity, sort_keys=True),
+        included_paths=("src/external_workload/__init__.py:reference",),
+        excluded_paths=("process initialization", "wheel build", "artifact packaging"),
+        approval="User approved the fixed demonstration target via approve_target=True",
+        compute_constraints=("local CPU with pinned NumPy",),
+    )
+    if not approve_target:
+        proposal = asdict(target)
+        proposal["approval"] = "pending"
+        print(json.dumps(proposal, indent=2, sort_keys=True))
+        print("Is this the workload you want accelerated?")
+        raise ValueError("target approval required; rerun with --approve-target")
+    contract = ForgeContract(
+        "external-square",
+        reference_identity,
+        asdict(CASE),
+        asdict(POLICY),
+        1,
+        target=target,
+    )
     baseline = measure(lambda: reference(SIZE))
     profiler = cProfile.Profile()
     profiler.runcall(reference, SIZE)
@@ -128,23 +172,8 @@ def run(output: Path, raddle_wheel: Path) -> ForgeCampaign:
             for entry in entries[:5]
         ],
     }
-    # NumPy publishes the full Git identity of the installed reference implementation.
-    revision = "git:" + np.version.git_revision
-    contract = ForgeContract(
-        "external-square",
-        {
-            "implementation": asdict(REFERENCE),
-            "revision": revision,
-            "adapter_sha256": hashlib.sha256(
-                (root / "src/external_workload/__init__.py").read_bytes()
-            ).hexdigest(),
-        },
-        asdict(CASE),
-        asdict(POLICY),
-        1,
-    )
     campaign = ForgeCampaign(
-        output / "ledger.jsonl",
+        output / "forge.jsonl",
         contract,
         baseline_id="reference",
         baseline_score=float(cast(float, baseline["median_ns"])),
@@ -162,7 +191,7 @@ def run(output: Path, raddle_wheel: Path) -> ForgeCampaign:
 
     evaluation = campaign.evaluate(
         candidate_source=root / "src/external_workload/candidate.py",
-        source_store=output / "sources",
+        source_store=output / "candidates",
         experiment_id="batch-square",
         parent_experiment="reference",
         metadata={"purpose": "integration example"},
@@ -220,7 +249,7 @@ def run(output: Path, raddle_wheel: Path) -> ForgeCampaign:
         workload_package="external-workload",
         workload_package_version="0.1.0",
         lock_file=root / "uv.lock",
-        output=output / "artifact",
+        output=output / "artifacts",
         repeat=3,
         warmup=1,
         reproduce=(
@@ -238,7 +267,7 @@ def run(output: Path, raddle_wheel: Path) -> ForgeCampaign:
             "print(measure(lambda: run(100000)))'",
         ),
     )
-    checked = read_artifact(output / "artifact")
+    checked = read_artifact(output / "artifacts")
     if checked != manifest:
         raise ValueError("artifact readback differs from created manifest")
     if manifest.candidate_source_revision != (
@@ -249,8 +278,19 @@ def run(output: Path, raddle_wheel: Path) -> ForgeCampaign:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        raise SystemExit("usage: python -m external_workload OUTPUT RADDLE_WHEEL")
-    result = run(Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve())
+    if len(sys.argv) not in (3, 4) or (
+        len(sys.argv) == 4 and sys.argv[3] != "--approve-target"
+    ):
+        raise SystemExit(
+            "usage: python -m external_workload OUTPUT RADDLE_WHEEL [--approve-target]"
+        )
+    try:
+        result = run(
+            Path(sys.argv[1]).resolve(),
+            Path(sys.argv[2]).resolve(),
+            approve_target=len(sys.argv) == 4,
+        )
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
     print("Accepted incumbent:", result.status()["incumbent"]["experiment_id"])
     print("Artifact readback passed. Local timings are integration evidence only.")

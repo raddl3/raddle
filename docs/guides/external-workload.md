@@ -6,18 +6,47 @@ or hosted service. The workload owns its code and callbacks.
 
 ## Establish the contract before candidate work
 
+Trace the user-named invocation and propose one workload before profiling,
+model downloads, credential use or candidate work. Ask "Is this the workload you
+want accelerated?" and stop until approved. Record an `AccelerationTarget` from
+`raddle.forge` with `target_id`, `invocation`, `representative_case`, `objective`,
+`timing_boundary`, `trusted_reference`, `included_paths`, `excluded_paths`,
+`approval` and optional `compute_constraints`. Identity/evidence strings and
+path/constraint tuples are immutable; use revisions, hashes and recorded settings
+rather than private paths or input payloads. Approval is recorded user evidence,
+not an authenticated permission token.
+
+Pass `target=approved_target` to `ForgeContract`. New skill-led campaigns require
+this binding. Forge stores the complete target and its canonical JSON SHA-256 in
+the contract, checks identity during use and rejects changes on reopening.
+Changed scope/objective/reference/case requires renewed approval and a new target
+and campaign. Historical targetless callers/ledgers remain supported: omitted
+`target` is omitted from serialization, preserving the old contract shape exactly.
+Adding a target to an existing targetless campaign also requires a new campaign;
+no ledger migration is needed.
+
+Recommended local layout is `.raddle/campaigns/<campaign-id>/` containing
+`forge.jsonl`, `candidates/` and `artifacts/`. The ledger's first row is the
+inspectable target/hash; no duplicate `target.json` is necessary. Ignore `.raddle/`
+in Git unless deliberately preserving sanitized evidence. Keep secrets and large
+workload inputs out. Existing ledger/source-store paths remain supported.
+
 Preserve the reference callable, representative inputs and all externally relevant
 outputs. Record the reference source revision, adapter/input hashes, case parameters,
 precision, and validation policy. Use JSON-serializable identities in `ForgeContract`;
 do not mutate their nested dictionaries after construction. The ledger checks the
 canonical serialized contract on reopening; changed identities require a new campaign.
 
-Measure a standalone reference baseline and a real profile first. Record raw
+After target approval, measure a standalone reference baseline and a real profile first. Record raw
 samples, warm-up, clock, timing boundary, hardware/software, setup, transfers and
 synchronization. A static guess is not a profile. Pass this evidence to
 `ForgeCampaign(ledger, contract, baseline_id=..., baseline_score=...,
 baseline_evidence=..., profile_evidence=...)`. Scores must use a consistent unit;
 for elapsed time, lower is better.
+
+Use measured evidence to propose mechanisms, semantic risks, validation and scope;
+stop for plan approval before isolated candidate work. Investigation categories
+and ML-specific guidance live in the bundled skill references.
 
 ## Supply the existing callback contract
 

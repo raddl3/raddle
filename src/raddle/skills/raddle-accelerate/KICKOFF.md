@@ -1,9 +1,8 @@
-Use the Raddle acceleration skill in this repository.
-
-Profile the existing project using trusted workload commands and preserve its reference calculation and correctness tests. Keep source and data in my environment; no upload to Raddle is required.
-
-First return an acceleration plan for my review: the measured hotspot (or label static inspection as unmeasured), reference semantics, proposed candidate, validation criteria, representative workload, timing boundary, suitable compute, and exact commands. Stop before candidate edits until I approve the plan.
-
-After approval, have the coding agent or engineer build the candidate in an isolated Git worktree. Evaluate on a local GPU or my existing SSH-accessible GPU machine. Without GPU measurements, label GPU paths unmeasured and do not claim a numerical GPU speedup.
-
-Use the workload's Forge validation gate before benchmarking. If an adapter is missing, follow the installed external-workload reference and public executable example to implement the workload-owned callbacks within the approved plan. Return validated evidence, provenance, changed files, and reproduction commands; package and read back an accepted Accelerator artifact using create_external_artifact and read_artifact before proposing adoption.
+Use Raddle on the requested execution path. Follow the installed raddle-accelerate
+skill: discover and trace one workload, propose its target and exclusions, ask
+"Is this the workload you want accelerated?" and stop for approval before profiling.
+Then measure the approved path, propose an evidence-based acceleration plan and
+stop for approval again. After approval, use an isolated Git worktree and the
+workload's Forge validation gate before benchmarking; package and read back only
+an accepted Accelerator artifact. Keep source/data local and label static or
+unavailable measurements unmeasured.

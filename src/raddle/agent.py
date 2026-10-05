@@ -77,7 +77,7 @@ def init(target: Path | None, agent: str | None, dry_run: bool = False) -> str:
     )
     return (
         f"{details}\n\n"
-        "Next: inspect a trusted workload with your coding agent or engineer.\n"
+        "Next: trace one workload and approve its target before profiling.\n"
         "Review the acceleration plan before candidate work in an isolated worktree.\n"
         "Source and data stay in your environment; no upload to Raddle is required.\n"
         f"\nOptional kickoff prompt:\n{contents['KICKOFF.md'].decode('utf-8')}"

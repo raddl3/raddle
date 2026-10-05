@@ -12,7 +12,7 @@ reproducible evidence.
 Raddle is distributed from public Git, not PyPI. With [uv](https://docs.astral.sh/uv/):
 
 ```sh
-uv tool install --python 3.12 git+https://github.com/raddl3/raddle@8eeb7db8c8522a692c9ae4d5477d1f1be75da272
+uv tool install --python 3.12 git+https://github.com/raddl3/raddle@v0.4.1
 raddle agent init
 ```
 
@@ -22,10 +22,12 @@ Initialization installs a provider-neutral skill in `.agents/skills/` or
 or preview with `--dry-run`. Modified installed files are never overwritten.
 Source and data stay in your environment.
 
-**Inspect → Plan → Build → Forge → Artifact**
+**Discover → Trace → Target approval → Profile → Plan approval → Build → Forge → Artifact**
 
-1. **Inspect:** profile your existing workload and preserve its reference.
-2. **Plan:** agree on semantics, validation cases, timing boundaries, and compute.
+1. **Target:** trace one execution path, lock inclusions/exclusions and ask
+   "Is this the workload you want accelerated?" Stop until approved.
+2. **Profile and plan:** measure only that target, propose evidence-based hypotheses,
+   semantics, validation and compute; stop for plan approval.
 3. **Build:** create an isolated candidate; define workload-owned callbacks.
 4. **Forge:** build, validate, then benchmark. Record every experiment and retain
    only an eligible improvement as incumbent.
@@ -51,10 +53,10 @@ their own evidence and timing scope.
 For library use in an existing Python 3.12+ project:
 
 ```sh
-uv add git+https://github.com/raddl3/raddle@8eeb7db8c8522a692c9ae4d5477d1f1be75da272
+uv add git+https://github.com/raddl3/raddle@v0.4.1
 ```
 
-- [`ForgeContract` / `ForgeCampaign`](src/raddle/forge.py): immutable campaign
+- [`AccelerationTarget` / `ForgeContract` / `ForgeCampaign`](src/raddle/forge.py): immutable campaign
   identities, source snapshots/hashes, validation-before-benchmark gating,
   experiment ledgers, resume, and incumbent selection.
 - [`BenchmarkResult`](src/raddle/forge.py): workload-owned evidence, score, and

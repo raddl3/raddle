@@ -9,13 +9,45 @@ import os
 import re
 import shutil
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
 
 def _json(value: object) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+@dataclass(frozen=True)
+class AccelerationTarget:
+    """Approved workload identity/evidence, never execution instructions."""
+
+    target_id: str
+    invocation: str
+    representative_case: str
+    objective: str
+    timing_boundary: str
+    trusted_reference: str
+    included_paths: tuple[str, ...]
+    excluded_paths: tuple[str, ...]
+    approval: str
+    compute_constraints: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        for name, value in self.__dict__.items():
+            if name in {"included_paths", "excluded_paths", "compute_constraints"}:
+                if not isinstance(value, tuple) or any(
+                    not isinstance(item, str) or not item.strip() for item in value
+                ):
+                    raise ValueError(f"{name} must be a tuple of nonempty strings")
+            elif not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a nonempty string")
+        if not self.included_paths:
+            raise ValueError("included_paths must identify the execution path")
+
+    @property
+    def sha256(self) -> str:
+        return hashlib.sha256(_json(asdict(self)).encode("utf-8")).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -27,10 +59,19 @@ class ForgeContract:
     case_identity: Mapping[str, object]
     validation_policy: Mapping[str, object]
     budget: int
+    target: AccelerationTarget | None = None
 
     def __post_init__(self) -> None:
         if not self.campaign_id or type(self.budget) is not int or self.budget <= 0:
             raise ValueError("campaign ID and positive experiment budget are required")
+
+    def to_dict(self) -> dict[str, Any]:
+        result = asdict(self)
+        if self.target is None:
+            del result["target"]  # Preserve the historical serialized contract.
+        else:
+            result["target_sha256"] = self.target.sha256
+        return result
 
 
 @dataclass(frozen=True)
@@ -67,6 +108,7 @@ class ForgeCampaign:
     ) -> None:
         self.ledger = ledger
         self.contract = contract
+        self._contract_identity = _json(contract.to_dict())
         self.event = event
         self.legacy_record_identity = legacy_record_identity
         self.legacy_score = legacy_score
@@ -74,7 +116,7 @@ class ForgeCampaign:
             "forge-campaign",
             {
                 "campaign_id": contract.campaign_id,
-                "contract": json.loads(_json(contract.__dict__)),
+                "contract": json.loads(self._contract_identity),
                 "baseline_id": baseline_id,
                 "baseline_score": baseline_score,
                 "baseline": baseline_evidence,
@@ -101,6 +143,7 @@ class ForgeCampaign:
         return rows
 
     def _append(self, event: str, record: dict[str, Any]) -> None:
+        self._check_contract()
         self.ledger.parent.mkdir(parents=True, exist_ok=True)
         rows = self._rows()
         campaigns = [
@@ -123,7 +166,12 @@ class ForgeCampaign:
             stream.flush()
             os.fsync(stream.fileno())
 
+    def _check_contract(self) -> None:
+        if _json(self.contract.to_dict()) != self._contract_identity:
+            raise ValueError("Forge campaign contract or target changed")
+
     def status(self) -> dict[str, Any]:
+        self._check_contract()
         rows = self._rows()
         campaign = next(
             row["record"]
@@ -131,6 +179,8 @@ class ForgeCampaign:
             if row["event"] == "forge-campaign"
             and row["record"].get("campaign_id") == self.contract.campaign_id
         )
+        if _json(campaign["contract"]) != self._contract_identity:
+            raise ValueError("Forge campaign contract or target changed")
 
         def matches_campaign(record: Mapping[str, Any]) -> bool:
             return record.get("campaign_id") == self.contract.campaign_id or (

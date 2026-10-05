@@ -1,15 +1,26 @@
+import hashlib
+import json
+from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from raddle.forge import BenchmarkResult, ForgeCampaign, ForgeContract
+from raddle.forge import (
+    AccelerationTarget,
+    BenchmarkResult,
+    ForgeCampaign,
+    ForgeContract,
+)
 
 
-def _campaign(tmp_path: Path, budget: int = 2) -> ForgeCampaign:
+def _campaign(
+    tmp_path: Path, budget: int = 2, *, target: AccelerationTarget | None = None
+) -> ForgeCampaign:
     return ForgeCampaign(
         tmp_path / "forge.jsonl",
         ForgeContract(
-            "case.one", {"revision": "abc"}, {"size": 4}, {"atol": 0.0}, budget
+            "case.one", {"revision": "abc"}, {"size": 4}, {"atol": 0.0}, budget, target
         ),
         baseline_id="baseline",
         baseline_score=10.0,
@@ -61,7 +72,7 @@ def test_forge_resumes_ledger_and_enforces_budget(tmp_path: Path) -> None:
 
 
 def test_interrupted_experiment_resumes_once_under_same_id(tmp_path: Path) -> None:
-    campaign = _campaign(tmp_path, budget=1)
+    campaign = _campaign(tmp_path, budget=1, target=_target())
     source = tmp_path / "candidate.py"
     source.write_text("candidate = 1\n", encoding="utf-8")
 
@@ -84,7 +95,7 @@ def test_interrupted_experiment_resumes_once_under_same_id(tmp_path: Path) -> No
         evaluate(interrupted)
     original_ledger = (tmp_path / "forge.jsonl").read_bytes()
 
-    resumed = _campaign(tmp_path, budget=1)
+    resumed = _campaign(tmp_path, budget=1, target=_target())
     result = resumed.evaluate(
         candidate_source=source,
         source_store=tmp_path / "sources",
@@ -212,3 +223,136 @@ def test_valid_candidate_can_become_incumbent(tmp_path: Path) -> None:
         .read_text(encoding="utf-8")
         .startswith("candidate =")
     )
+
+
+def _target() -> AccelerationTarget:
+    return AccelerationTarget(
+        "workload.one",
+        "app.run(4)",
+        "size=4",
+        "warm latency",
+        "run including allocation",
+        "revision:abc",
+        ("app.py:run",),
+        ("legacy/",),
+        "User approved workload.one",
+        ("local CPU",),
+    )
+
+
+def _target_campaign(
+    tmp_path: Path, target: AccelerationTarget | None
+) -> ForgeCampaign:
+    return ForgeCampaign(
+        tmp_path / "forge.jsonl",
+        ForgeContract(
+            "case.one", {"revision": "abc"}, {"size": 4}, {"atol": 0.0}, 2, target
+        ),
+        baseline_id="baseline",
+        baseline_score=10.0,
+        baseline_evidence={"samples": [10.0]},
+        profile_evidence={"top": ["reference"]},
+        event="phase-d",
+    )
+
+
+def test_target_is_immutable_and_hashed(tmp_path: Path) -> None:
+    target = _target()
+    with pytest.raises(FrozenInstanceError):
+        target.objective = "throughput"  # type: ignore[misc]
+    with pytest.raises(TypeError):
+        target.included_paths[0] = "legacy/"  # type: ignore[index]
+    with pytest.raises(ValueError, match="tuple"):
+        replace(target, included_paths=["app.py"])  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="nonempty"):
+        replace(target, approval="")
+    campaign = _target_campaign(tmp_path, target)
+    contract = campaign.status()["contract"]
+    assert contract["target_sha256"] == target.sha256
+    assert contract["target"]["excluded_paths"] == ["legacy/"]
+    assert _json_target_hash(contract["target"]) == target.sha256
+
+
+def _json_target_hash(target: object) -> str:
+    return hashlib.sha256(
+        json.dumps(target, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+@pytest.mark.parametrize("field", list(AccelerationTarget.__dataclass_fields__))
+def test_reopen_rejects_any_changed_target(tmp_path: Path, field: str) -> None:
+    target = _target()
+    _target_campaign(tmp_path, target)
+    original = (tmp_path / "forge.jsonl").read_bytes()
+    value = getattr(target, field)
+    changes: dict[str, Any] = {
+        field: (*value, "changed") if isinstance(value, tuple) else value + "changed"
+    }
+    changed = replace(target, **changes)
+    with pytest.raises(ValueError, match="changed"):
+        _target_campaign(tmp_path, changed)
+    with pytest.raises(ValueError, match="changed"):
+        _target_campaign(tmp_path, None)
+    assert (tmp_path / "forge.jsonl").read_bytes() == original
+    assert _target_campaign(tmp_path, target).status()["remaining_budget"] == 2
+
+
+def test_open_campaign_rejects_replaced_target_and_nested_contract_mutation(
+    tmp_path: Path,
+) -> None:
+    campaign = _target_campaign(tmp_path, _target())
+    original = (tmp_path / "forge.jsonl").read_bytes()
+    campaign.contract = replace(
+        campaign.contract, target=replace(_target(), objective="throughput")
+    )
+    with pytest.raises(ValueError, match="changed"):
+        _evaluate(campaign, tmp_path, "candidate.py")
+    campaign = _target_campaign(tmp_path, _target())
+    identity = campaign.contract.reference_identity
+    assert isinstance(identity, dict)
+    identity["revision"] = "changed"
+    with pytest.raises(ValueError, match="changed"):
+        campaign.status()
+    assert (tmp_path / "forge.jsonl").read_bytes() == original
+
+
+def test_historical_targetless_campaign_is_read_without_rewrite(tmp_path: Path) -> None:
+    ledger = tmp_path / "forge.jsonl"
+    record = {
+        "campaign_id": "case.one",
+        "contract": {
+            "campaign_id": "case.one",
+            "reference_identity": {"revision": "abc"},
+            "case_identity": {"size": 4},
+            "validation_policy": {"atol": 0.0},
+            "budget": 2,
+        },
+        "baseline_id": "baseline",
+        "baseline_score": 10.0,
+        "baseline": {"samples": [10.0]},
+        "profile": {"top": ["reference"]},
+    }
+    original = (
+        json.dumps({"event": "forge-campaign", "record": record}) + "\n"
+    ).encode()
+    ledger.write_bytes(original)
+    campaign = _campaign(tmp_path)
+    assert campaign.status()["contract"] == record["contract"]
+    assert ledger.read_bytes() == original
+    with pytest.raises(ValueError, match="changed"):
+        _target_campaign(tmp_path, _target())
+    assert ledger.read_bytes() == original
+    assert _evaluate(campaign, tmp_path, "candidate.py")["accepted"] is True
+    assert ledger.read_bytes().startswith(original)
+
+
+def test_target_bound_validation_still_gates_benchmark(tmp_path: Path) -> None:
+    campaign = _target_campaign(tmp_path, _target())
+    calls: list[str] = []
+    record = _evaluate(
+        campaign, tmp_path, "bad.py", validation="mismatched", benchmark_calls=calls
+    )
+    assert record["accepted"] is False
+    assert record["benchmark"] is None
+    assert calls == []
+    assert _target_campaign(tmp_path, _target()).status()["attempts_used"] == 1

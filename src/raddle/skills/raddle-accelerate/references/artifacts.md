@@ -4,7 +4,9 @@ Read the [public integration guide](https://github.com/raddl3/raddle/blob/main/d
 and [artifact API](https://github.com/raddl3/raddle/blob/main/src/raddle/artifact.py).
 The complete external example includes wheel construction and readback.
 
-1. Inspect campaign acceptance; obtain `incumbent_source()` and preserve the ledger.
+1. Inspect campaign acceptance; obtain `incumbent_source()` and preserve the ledger
+   containing the approved target/hash. Keep it alongside the artifact; the existing
+   artifact schema does not carry the Forge target or authenticate approval.
 2. Build the workload wheel from that snapshot. Verify its source member bytes
    against the incumbent hash. Build a Raddle wheel matching the running package.
 3. Call `create_external_artifact` with descriptor/case, reference and candidate
