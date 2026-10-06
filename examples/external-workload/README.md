@@ -63,3 +63,12 @@ evidence. Local paths/host identifiers are excluded from structured evidence.
 The path dependency in this example's lockfile intentionally consumes the public
 checkout. In your existing project, use an immutable public Raddle release and
 supply your own callbacks. See the [callback and artifact guide](../../docs/guides/external-workload.md).
+
+The focused two-loop fixture in `tests/test_external_workload.py` also calls
+`run(..., parent=first, approve_loop=True, adopted_source=applied_source,
+candidate_source=new_source)`. These flags represent approval of the fixture's
+new plan, not an autonomous optimizer. It runs fresh baseline/profile callbacks,
+keeps correctness anchored to `reference`, and produces a separate artifact and
+ledger. Scripted selection scores test transitions without CI speed thresholds;
+they are not performance claims. In actual use, stop after the next-loop offer,
+re-profile only after opt-in, and obtain fresh plan/budget approval before Forge.

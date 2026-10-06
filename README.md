@@ -12,7 +12,7 @@ reproducible evidence.
 Raddle is distributed from public Git, not PyPI. With [uv](https://docs.astral.sh/uv/):
 
 ```sh
-uv tool install --python 3.12 git+https://github.com/raddl3/raddle@v0.4.1
+uv tool install --python 3.12 git+https://github.com/raddl3/raddle@v0.5.0
 raddle agent init
 ```
 
@@ -53,7 +53,7 @@ their own evidence and timing scope.
 For library use in an existing Python 3.12+ project:
 
 ```sh
-uv add git+https://github.com/raddl3/raddle@v0.4.1
+uv add git+https://github.com/raddl3/raddle@v0.5.0
 ```
 
 - [`AccelerationTarget` / `ForgeContract` / `ForgeCampaign`](src/raddle/forge.py): immutable campaign

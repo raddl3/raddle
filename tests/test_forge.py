@@ -11,6 +11,7 @@ from raddle.forge import (
     BenchmarkResult,
     ForgeCampaign,
     ForgeContract,
+    LoopLineage,
 )
 
 
@@ -356,3 +357,58 @@ def test_target_bound_validation_still_gates_benchmark(tmp_path: Path) -> None:
     assert record["benchmark"] is None
     assert calls == []
     assert _target_campaign(tmp_path, _target()).status()["attempts_used"] == 1
+
+
+def test_later_loop_requires_an_accepted_incumbent(tmp_path: Path) -> None:
+    campaign = _target_campaign(tmp_path, _target())
+    original = campaign.ledger.read_bytes()
+    with pytest.raises(ValueError, match="baseline is still"):
+        campaign.next_loop(
+            tmp_path / "next/forge.jsonl",
+            campaign_id="next",
+            budget=3,
+            target=_target(),
+            approved=True,
+            adopted_source=tmp_path / "missing.py",
+            parent_artifact=tmp_path / "missing-artifact",
+            baseline_score=5.0,
+            baseline_evidence={},
+            profile_evidence={},
+        )
+    assert campaign.ledger.read_bytes() == original
+    assert not (tmp_path / "next").exists()
+
+
+def test_historical_target_bound_contract_omits_lineage(tmp_path: Path) -> None:
+    campaign = _target_campaign(tmp_path, _target())
+    original = campaign.ledger.read_bytes()
+    assert "lineage" not in campaign.status()["contract"]
+    assert _target_campaign(tmp_path, _target()).ledger.read_bytes() == original
+
+
+def test_lineage_is_frozen_and_validated() -> None:
+    lineage = LoopLineage(2, "parent", "a" * 64, "winner", "b" * 64)
+    with pytest.raises(FrozenInstanceError):
+        lineage.loop_number = 3  # type: ignore[misc]
+    for changes in (
+        {"loop_number": 1},
+        {"loop_number": True},
+        {"parent_campaign_id": ""},
+        {"parent_artifact_sha256": "bad"},
+        {"baseline_source_sha256": "bad"},
+    ):
+        with pytest.raises(ValueError):
+            replace(lineage, **changes)
+
+
+@pytest.mark.parametrize("score", [0.0, -1.0, float("nan"), float("inf"), True])
+def test_baseline_score_must_be_positive(tmp_path: Path, score: float) -> None:
+    with pytest.raises(ValueError, match="baseline score"):
+        ForgeCampaign(
+            tmp_path / "forge.jsonl",
+            _campaign(tmp_path).contract,
+            baseline_id="baseline",
+            baseline_score=score,
+            baseline_evidence={},
+            profile_evidence={},
+        )

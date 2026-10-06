@@ -9,7 +9,7 @@ import os
 import re
 import shutil
 from collections.abc import Callable, Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +51,26 @@ class AccelerationTarget:
 
 
 @dataclass(frozen=True)
+class LoopLineage:
+    """Link a fresh performance baseline to its adopted parent winner."""
+
+    loop_number: int
+    parent_campaign_id: str
+    parent_artifact_sha256: str
+    baseline_id: str
+    baseline_source_sha256: str
+
+    def __post_init__(self) -> None:
+        if type(self.loop_number) is not int or self.loop_number < 2:
+            raise ValueError("later loop numbers must be integers >= 2")
+        if not self.parent_campaign_id or not self.baseline_id:
+            raise ValueError("parent campaign and baseline identities are required")
+        for digest in (self.parent_artifact_sha256, self.baseline_source_sha256):
+            if re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+                raise ValueError("lineage hashes must be SHA-256 hex digests")
+
+
+@dataclass(frozen=True)
 class ForgeContract:
     """Immutable identity and acceptance contract for one campaign case."""
 
@@ -60,6 +80,7 @@ class ForgeContract:
     validation_policy: Mapping[str, object]
     budget: int
     target: AccelerationTarget | None = None
+    lineage: LoopLineage | None = None
 
     def __post_init__(self) -> None:
         if not self.campaign_id or type(self.budget) is not int or self.budget <= 0:
@@ -71,6 +92,8 @@ class ForgeContract:
             del result["target"]  # Preserve the historical serialized contract.
         else:
             result["target_sha256"] = self.target.sha256
+        if self.lineage is None:
+            del result["lineage"]  # No migration for v0.4.x contracts.
         return result
 
 
@@ -106,6 +129,14 @@ class ForgeCampaign:
         legacy_record_identity: tuple[str, str] | None = None,
         legacy_score: Callable[[Mapping[str, Any]], float | None] | None = None,
     ) -> None:
+        if (
+            isinstance(baseline_score, bool)
+            or not math.isfinite(baseline_score)
+            or baseline_score <= 0
+        ):
+            raise ValueError("baseline score must be finite and positive")
+        if contract.lineage is not None and baseline_id != contract.lineage.baseline_id:
+            raise ValueError("baseline identity differs from loop lineage")
         self.ledger = ledger
         self.contract = contract
         self._contract_identity = _json(contract.to_dict())
@@ -217,6 +248,8 @@ class ForgeCampaign:
         return {
             "campaign_id": self.contract.campaign_id,
             "contract": campaign["contract"],
+            "baseline_id": campaign["baseline_id"],
+            "baseline_score": campaign["baseline_score"],
             "baseline": campaign["baseline"],
             "profile": campaign["profile"],
             "experiments": experiments,
@@ -244,6 +277,112 @@ class ForgeCampaign:
         ):
             raise ValueError("incumbent candidate snapshot hash mismatch")
         return source
+
+    def record_artifact(self, artifact: Path) -> str:
+        """Read back an external artifact and bind its manifest to this winner."""
+        from raddle.artifact import read_artifact
+        from raddle.contracts import ExternalAcceleratorArtifact
+
+        manifest = read_artifact(artifact)
+        incumbent = self.status()["incumbent"]
+        self.incumbent_source()
+        if not isinstance(manifest, ExternalAcceleratorArtifact) or (
+            manifest.candidate_source_revision
+            != "sha256:" + incumbent["candidate_source_hash"]
+        ):
+            raise ValueError("artifact does not contain the accepted incumbent")
+        digest = hashlib.sha256((artifact / "manifest.json").read_bytes()).hexdigest()
+        record = {
+            "campaign_id": self.contract.campaign_id,
+            "experiment_id": incumbent["experiment_id"],
+            "candidate_source_hash": incumbent["candidate_source_hash"],
+            "artifact_manifest_sha256": digest,
+        }
+        if not any(
+            row["event"] == "forge-artifact" and row["record"] == record
+            for row in self._rows()
+        ):
+            self._append("forge-artifact", record)
+        return digest
+
+    def next_loop(
+        self,
+        ledger: Path,
+        *,
+        campaign_id: str,
+        budget: int,
+        target: AccelerationTarget,
+        approved: bool,
+        adopted_source: Path,
+        parent_artifact: Path,
+        baseline_score: float,
+        baseline_evidence: object,
+        profile_evidence: object,
+    ) -> ForgeCampaign:
+        """After opt-in and fresh plan approval, open an independent campaign.
+
+        Callers measure/profile the verified adopted workload anew, then obtain
+        approval for the new plan and budget before calling this method. Execution
+        and correctness validation remain workload-owned; reference identity is
+        inherited unchanged. This method never profiles or runs candidates.
+        """
+        if approved is not True:
+            raise ValueError("explicit user approval required for another loop")
+        if self.contract.target is None or target != self.contract.target:
+            raise ValueError(
+                "changed or missing target requires renewed target approval"
+            )
+        self.incumbent_source()
+        incumbent = self.status()["incumbent"]
+        source_hash = hashlib.sha256(adopted_source.read_bytes()).hexdigest()
+        if source_hash != incumbent["candidate_source_hash"]:
+            raise ValueError("adopted source differs from accepted incumbent")
+        # Readback verifies all artifact members, without writing the parent ledger.
+        from raddle.artifact import read_artifact
+        from raddle.contracts import ExternalAcceleratorArtifact
+
+        manifest = read_artifact(parent_artifact)
+        digest = hashlib.sha256(
+            (parent_artifact / "manifest.json").read_bytes()
+        ).hexdigest()
+        if not isinstance(manifest, ExternalAcceleratorArtifact) or (
+            manifest.candidate_source_revision != "sha256:" + source_hash
+        ):
+            raise ValueError("parent artifact differs from adopted incumbent")
+        if not any(
+            row["event"] == "forge-artifact"
+            and row["record"].get("campaign_id") == self.contract.campaign_id
+            and row["record"].get("experiment_id") == incumbent["experiment_id"]
+            and row["record"].get("artifact_manifest_sha256") == digest
+            for row in self._rows()
+        ):
+            raise ValueError("parent artifact must be recorded before another loop")
+        if (
+            campaign_id == self.contract.campaign_id
+            or ledger.exists()
+            or ledger.parent.resolve().is_relative_to(self.ledger.parent.resolve())
+            or self.ledger.parent.resolve().is_relative_to(ledger.parent.resolve())
+        ):
+            raise ValueError("another loop requires a new campaign ID and directory")
+        lineage = LoopLineage(
+            2
+            if self.contract.lineage is None
+            else self.contract.lineage.loop_number + 1,
+            self.contract.campaign_id,
+            digest,
+            incumbent["experiment_id"],
+            source_hash,
+        )
+        return ForgeCampaign(
+            ledger,
+            replace(
+                self.contract, campaign_id=campaign_id, budget=budget, lineage=lineage
+            ),
+            baseline_id=incumbent["experiment_id"],
+            baseline_score=baseline_score,
+            baseline_evidence=baseline_evidence,
+            profile_evidence=profile_evidence,
+        )
 
     def evaluate(
         self,

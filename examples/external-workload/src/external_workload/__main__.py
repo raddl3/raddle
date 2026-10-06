@@ -110,7 +110,14 @@ def build(snapshot: Path) -> tuple[object, object]:
 
 
 def run(
-    output: Path, raddle_wheel: Path, *, approve_target: bool = False
+    output: Path,
+    raddle_wheel: Path,
+    *,
+    approve_target: bool = False,
+    parent: ForgeCampaign | None = None,
+    approve_loop: bool = False,
+    adopted_source: Path | None = None,
+    candidate_source: Path | None = None,
 ) -> ForgeCampaign:
     if output.exists():
         raise ValueError("use a new output directory for this demonstration")
@@ -152,9 +159,14 @@ def run(
         1,
         target=target,
     )
-    baseline = measure(lambda: reference(SIZE))
+    baseline_runner: Runner = reference
+    if parent is not None:
+        if not approve_loop or adopted_source is None:
+            raise ValueError("explicit user approval required for another loop")
+        baseline_runner = cast(Runner, build(adopted_source)[0])
+    baseline = measure(lambda: baseline_runner(SIZE))
     profiler = cProfile.Profile()
-    profiler.runcall(reference, SIZE)
+    profiler.runcall(baseline_runner, SIZE)
     entries = sorted(
         profiler.getstats(), key=lambda entry: entry.totaltime, reverse=True
     )
@@ -172,14 +184,29 @@ def run(
             for entry in entries[:5]
         ],
     }
-    campaign = ForgeCampaign(
-        output / "forge.jsonl",
-        contract,
-        baseline_id="reference",
-        baseline_score=float(cast(float, baseline["median_ns"])),
-        baseline_evidence=baseline,
-        profile_evidence=profile,
-    )
+    if parent is None:
+        campaign = ForgeCampaign(
+            output / "forge.jsonl",
+            contract,
+            baseline_id="reference",
+            baseline_score=float(cast(float, baseline["median_ns"])),
+            baseline_evidence=baseline,
+            profile_evidence=profile,
+        )
+    else:
+        assert adopted_source is not None
+        campaign = parent.next_loop(
+            output / "forge.jsonl",
+            campaign_id="external-square-loop-2",
+            budget=1,
+            target=target,
+            approved=approve_loop,
+            adopted_source=adopted_source,
+            parent_artifact=parent.ledger.parent / "artifacts",
+            baseline_score=float(cast(float, baseline["median_ns"])),
+            baseline_evidence=baseline,
+            profile_evidence=profile,
+        )
     expected = reference(SIZE)
 
     def check(candidate: object) -> dict[str, object]:
@@ -190,10 +217,11 @@ def run(
         return BenchmarkResult(evidence, float(cast(float, evidence["median_ns"])))
 
     evaluation = campaign.evaluate(
-        candidate_source=root / "src/external_workload/candidate.py",
+        candidate_source=candidate_source
+        or root / "src/external_workload/candidate.py",
         source_store=output / "candidates",
         experiment_id="batch-square",
-        parent_experiment="reference",
+        parent_experiment=campaign.status()["baseline_id"],
         metadata={"purpose": "integration example"},
         build=build,
         validate=check,
@@ -274,6 +302,7 @@ def run(
         "sha256:" + campaign.status()["incumbent"]["candidate_source_hash"]
     ):
         raise ValueError("artifact readback disagrees with Forge incumbent")
+    campaign.record_artifact(output / "artifacts")
     return campaign
 
 

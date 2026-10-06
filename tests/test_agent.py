@@ -118,3 +118,18 @@ def test_install_preflights_directory_conflict(tmp_path: Path) -> None:
         init(tmp_path, "codex")
     assert not (folder / "SKILL.md").exists()
     assert (folder / "references").read_text() == "user-owned file"
+
+
+def test_installed_skill_stops_at_next_loop_offer(tmp_path: Path) -> None:
+    init(tmp_path, "codex")
+    skill = (tmp_path / ".agents/skills/raddle-accelerate/SKILL.md").read_text()
+    assert "ADOPTION REVIEW → APPLY + VERIFY → OFFER NEXT LOOP" in skill
+    assert "Would you like Raddle to re-profile" in skill
+    assert "STOP until the user explicitly opts in" in skill
+    assert "Do not automatically start profiling" in skill
+    assert "If the user says no, finish cleanly" in skill
+    assert "final result and evidence location" in skill
+    assert "NEW bottleneck distribution" in skill
+    assert "STOP for plan approval" in skill
+    assert "ORIGINAL trusted reference" in skill
+    assert "no adopted" in skill

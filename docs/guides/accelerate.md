@@ -9,7 +9,7 @@ not an autonomous optimizer or a workload discovery service.
    PyPI. Install the pinned public tool, then initialize from your repository root:
 
    ```sh
-   uv tool install --python 3.12 git+https://github.com/raddl3/raddle@v0.4.1
+   uv tool install --python 3.12 git+https://github.com/raddl3/raddle@v0.5.0
    raddle agent init
    ```
 
@@ -17,9 +17,9 @@ not an autonomous optimizer or a workload discovery service.
    Claude Code uses `.claude/skills/raddle-accelerate/`. Choose with
    `--agent codex` or `--agent claude`; preview with `--dry-run`. Modified
    installed files are never overwritten. For library integration use
-   `uv add git+https://github.com/raddl3/raddle@v0.4.1`. Your project needs Python 3.12+; pin it with
+   `uv add git+https://github.com/raddl3/raddle@v0.5.0`. Your project needs Python 3.12+; pin it with
    `uv python pin 3.12` if needed. On Linux CUDA 12, install the backend with
-   `uv add "raddle[cuda12] @ git+https://github.com/raddl3/raddle@v0.4.1"`. The optional kickoff text is also installed in `KICKOFF.md`.
+   `uv add "raddle[cuda12] @ git+https://github.com/raddl3/raddle@v0.5.0"`. The optional kickoff text is also installed in `KICKOFF.md`.
 2. **Lock one target, then profile.** A prompt such as "Use Raddle on the inference
    path" is enough. The skill traces the named invocation and proposes one target:
    representative case, objective, boundary, trusted reference, included/excluded

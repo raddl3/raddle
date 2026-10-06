@@ -19,3 +19,7 @@ Packaging revalidates before timing and measures a separate run. Report Forge
 selection and artifact timings separately. Readback checks integrity, not execution;
 ensure the packaged bytes are the candidate that ran. Keep every failed result out
 of accepted artifacts and require review before adoption.
+
+5. Call `campaign.record_artifact(output)` to bind the verified manifest hash to
+   the accepted winner. After approved adoption, apply and verify, then offer the
+   next loop and STOP. Keep the trusted reference unchanged in later artifacts.

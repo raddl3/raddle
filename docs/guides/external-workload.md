@@ -104,3 +104,35 @@ executed candidate is the packaged candidate, as the example does.
 For GPU workloads, synchronize at timing boundaries and state end-to-end versus
 device-only scope. Use [manual SSH](ssh-evaluation.md) for existing remote compute;
 there is no Raddle SSH executor. Without suitable compute, keep candidates unmeasured.
+
+## Another user-approved loop
+
+After adoption review, apply and verify the winner, then offer another loop and
+stop. Declining ends with the final result and evidence location. Approval permits
+fresh measurement and profiling of the adopted incumbent, followed by a new plan;
+stop again for approval of that plan and its fresh experiment budget.
+
+Record the verified accepted external artifact with `campaign.record_artifact(path)`
+before completing the parent campaign. Then leave that campaign unchanged.
+After fresh plan approval call `campaign.next_loop(new_ledger, campaign_id=...,
+budget=..., target=approved_target, approved=True, adopted_source=...,
+parent_artifact=..., baseline_score=..., baseline_evidence=..., profile_evidence=...)`.
+Use a new `.raddle/campaigns/<campaign-id>/` directory; no workload inputs are copied.
+The helper checks the adopted source and recorded artifact hashes, retains target,
+reference/case/policy, and records immutable `LoopLineage` in the new contract.
+The lineage contains loop number, parent campaign, parent manifest hash, baseline
+incumbent ID and source hash. The new campaign record supplies fresh baseline score
+and profile; accepted experiment records and `forge-artifact` records identify its
+winner and resulting artifact. Loop 1 has no lineage. Old ledgers need no migration.
+
+Correctness callbacks and artifact creation must still use the original trusted
+reference. Artifact reference timing remains reference timing; the next-loop Forge
+baseline measures the adopted incumbent separately. Forge cannot authenticate user
+approval or prove arbitrary workload callback semantics. The caller records actual
+approval, verifies adoption, and supplies fresh measured evidence, never cached data.
+Changed targets need renewed target approval and a separate campaign; `next_loop`
+rejects them. A campaign with no accepted winner cannot seed another loop.
+
+See `tests/test_external_workload.py` for the focused two-loop fixture. Its scripted
+selection scores test state transitions only, not performance; artifact creation
+and reproduction still perform real validation and timing.
