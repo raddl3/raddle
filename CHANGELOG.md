@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.6.0 (2026-10-08)
+
+### Feat
+
+- Add guided local agent setup, safe project launch configuration and interactive runtime launch.
+- Add read-only general and approved-workload preflight with JSON reports and explicit unchecked requirements.
+- Use capability-aware approval choices and concise onboarding over unchanged Forge contracts.
+- Preserve skill-only setup and refuse modified skill replacement; document supported interfaces and routing limitations.
+
 ## v0.5.0 (2026-10-06)
 
 ### Feat

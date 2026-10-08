@@ -9,15 +9,51 @@ The coding agent or engineer produces candidates; Raddle supplies the harness.
 Source and data stay in the user's environment. Use trusted project commands.
 
 DISCOVER → TRACE EXECUTION PATH → PROPOSE TARGET → USER APPROVES TARGET
-→ PROFILE → PROPOSE ACCELERATION PLAN → USER APPROVES PLAN
+→ WORKLOAD PREFLIGHT → PROFILE → PROPOSE ACCELERATION PLAN → USER APPROVES PLAN
 → ISOLATED CANDIDATE WORK → FORGE EVALUATION → ARTIFACT
 → ADOPTION REVIEW → APPLY + VERIFY → OFFER NEXT LOOP
+
+Welcome briefly: "I'm ready to help accelerate your project. Would you like to
+ describe a workload, or have me inspect this repository?" Investigate useful
+ entrypoints yourself; ask only for unresolved scope. Run `raddle doctor --json`
+ for general readiness before target selection. Resolve BLOCKED setup checks
+ before proceeding; do not repair the environment automatically.
+
+## Human decisions
+
+At target, plan, adoption and another-loop approval, inspect the tools actually
+available in this interaction mode. Use a native structured question tool only
+when it supports these choices and free-text revision instructions. For example,
+Claude Code may expose AskUserQuestion; Codex question tools depend on mode.
+Do not assume a tool exists from the runtime name. If unavailable, restricted to
+another mode, or a tool call fails, ask conversationally with the same choices:
+**Approve / Request changes / Decline**. Never draw fake native controls.
+
+- **Approve:** explicit approval of the exact current proposal permits only that
+  stage. Record sanitized decision evidence. Silence, a default selection,
+  an empty/tool error response, and ambiguous replies are not approval.
+- **Request changes:** collect instructions, revise the proposal and STOP for
+  fresh approval. Changes never authorize execution of the old or new proposal.
+- **Decline:** stop the proposed action cleanly and report preserved evidence.
+  Do not discard previous results, apply a patch or start another loop.
+
+Normal runtime authorization and sandbox rules still apply. Raddle cannot
+ authenticate consent. Never invoke expensive commands based on a pending question.
+
+## Workflow
 
 1. Read project instructions and [scoping.md](references/scoping.md). Trace from
    the user-named entrypoint; propose one target with explicit exclusions. Ask
    **"Is this the workload you want accelerated?"** and STOP until approved.
    Do this before expensive profiling, model downloads, credential use or candidates.
-2. Profile only the approved path and representative case. Consult
+2. After target approval, run relevant `raddle doctor --workload-approved --json`
+   checks using [preflight.md](references/preflight.md). Inspect requirements from
+   the approved path, not every installed framework. BLOCKED stops the affected
+   work; WARN needs assessment; NOT CHECKED is not a pass. Resolve required
+   unchecked capabilities with a lightweight, approved workload probe before
+   profiling or Forge evaluation. Environment changes need separate approval.
+   Recheck relevant requirements when compute, artifacts or dependencies change.
+   Profile only the approved path and representative case. Consult
    [opportunities.md](references/opportunities.md) and, for ML inference,
    [ml-inference.md](references/ml-inference.md). Static inspection is unmeasured.
 3. Propose the evidence-based acceleration plan, validation, implementation scope,

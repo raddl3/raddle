@@ -1,6 +1,6 @@
 # Raddle
 
-**Keep the calculation. Lose the wait.**
+**Keep the calculation. Replace the execution.**
 
 Raddle is a validation and performance-engineering harness for trusted numerical
 workloads. It helps a coding agent or engineer inspect a workload, test alternative
@@ -12,17 +12,29 @@ reproducible evidence.
 Raddle is distributed from public Git, not PyPI. With [uv](https://docs.astral.sh/uv/):
 
 ```sh
-uv tool install --python 3.12 git+https://github.com/raddl3/raddle@v0.5.0
-raddle agent init
+uv tool install --python 3.12 git+https://github.com/raddl3/raddle@v0.6.0
+raddle init
+raddle start
 ```
 
-Codex and Claude remain the candidate producers; Raddle supplies the harness.
-Initialization installs a provider-neutral skill in `.agents/skills/` or
-`.claude/skills/`. Choose `--agent codex` / `--agent claude`, use `--target PATH`,
-or preview with `--dry-run`. Modified installed files are never overwritten.
-Source and data stay in your environment.
+`raddle init` detects installed Codex and Claude Code runtimes, installs the skill,
+and stores inspectable launch choices in `.raddle/agent.json`. `raddle start` opens
+your normal interactive agent with a short welcome: describe a workload or let it
+inspect the project. No handcrafted kickoff prompt is needed.
 
-**Discover → Trace → Target approval → Profile → Plan approval → Build → Forge → Artifact**
+Raddle supplies contracts, workflow and evidence; the coding agent produces
+candidates. Your existing runtime backend/authentication stays in charge. Setup
+never changes global agent configuration or stores credentials. Modified installed
+skill files are never overwritten. Agent providers retain their normal data policies;
+Raddle requires no source/data upload to a hosted Raddle service.
+
+For scripts: `raddle init --non-interactive --agent codex` (or `claude`).
+Run `raddle doctor --json` for read-only readiness checks and
+`raddle start --dry-run` to inspect the exact launch arguments.
+See the [setup guide](docs/guides/accelerate.md) for supported models/backends,
+workload preflight, approval fallback and upgrading from v0.5.0.
+
+**Discover → Trace → Target approval → Preflight → Profile → Plan approval → Build → Forge → Artifact**
 
 1. **Target:** trace one execution path, lock inclusions/exclusions and ask
    "Is this the workload you want accelerated?" Stop until approved.
@@ -53,7 +65,7 @@ their own evidence and timing scope.
 For library use in an existing Python 3.12+ project:
 
 ```sh
-uv add git+https://github.com/raddl3/raddle@v0.5.0
+uv add git+https://github.com/raddl3/raddle@v0.6.0
 ```
 
 - [`AccelerationTarget` / `ForgeContract` / `ForgeCampaign`](src/raddle/forge.py): immutable campaign

@@ -48,6 +48,6 @@ tasks:
     desc: Run the complete external-workload integration in a fresh output directory
     cmds:
       - task: build
-      - uv run --project examples/external-workload --python 3.12 --frozen python -c "import tempfile; from pathlib import Path; from external_workload.__main__ import run; output = Path(tempfile.mkdtemp(prefix='raddle-integration-')) / 'campaign'; run(output, Path('dist/raddle-0.5.0-py3-none-any.whl').resolve(), approve_target=True); print('Artifact readback passed:', output / 'artifacts')"
+      - uv run --project examples/external-workload --python 3.12 --frozen python -c "import tempfile; from pathlib import Path; from external_workload.__main__ import run; output = Path(tempfile.mkdtemp(prefix='raddle-integration-')) / 'campaign'; run(output, Path('dist/raddle-0.6.0-py3-none-any.whl').resolve(), approve_target=True); print('Artifact readback passed:', output / 'artifacts')"
   clean:
     cmd: uv run --frozen python -c "import pathlib, shutil; [shutil.rmtree(p, ignore_errors=True) for p in ('dist', '.pytest_cache', '.mypy_cache', '.ruff_cache', 'htmlcov')]; pathlib.Path('.coverage').unlink(missing_ok=True)"

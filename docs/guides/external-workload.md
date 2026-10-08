@@ -37,7 +37,10 @@ precision, and validation policy. Use JSON-serializable identities in `ForgeCont
 do not mutate their nested dictionaries after construction. The ledger checks the
 canonical serialized contract on reopening; changed identities require a new campaign.
 
-After target approval, measure a standalone reference baseline and a real profile first. Record raw
+After target approval, run relevant read-only `raddle doctor --workload-approved`
+checks in the workload environment (see [setup/preflight](accelerate.md#preflight-and-approvals)).
+Resolve required BLOCKED and NOT CHECKED capabilities with approved lightweight probes.
+Then measure a standalone reference baseline and a real profile first. Record raw
 samples, warm-up, clock, timing boundary, hardware/software, setup, transfers and
 synchronization. A static guess is not a profile. Pass this evidence to
 `ForgeCampaign(ledger, contract, baseline_id=..., baseline_score=...,

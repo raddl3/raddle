@@ -2,14 +2,17 @@
 
 import argparse
 import json
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 from raddle import __version__
+from raddle.agent import choose, setup, start
 from raddle.agent import init as agent_init
 from raddle.artifact import create_artifact
 from raddle.contracts import TimingScope
 from raddle.cupy_backend import BackendUnavailable
+from raddle.preflight import readiness, report
 from raddle.registry import get_accelerator, list_accelerators
 
 
@@ -23,6 +26,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     init_parser.add_argument("--target", type=Path, help="Project root")
     init_parser.add_argument("--agent", choices=("codex", "claude"))
     init_parser.add_argument("--dry-run", action="store_true")
+    setup_parser = commands.add_parser(
+        "init", help="Configure a coding agent and install the skill"
+    )
+    setup_parser.add_argument("--target", type=Path, default=Path.cwd())
+    setup_parser.add_argument("--agent", choices=("codex", "claude"))
+    setup_parser.add_argument("--backend")
+    setup_parser.add_argument("--model")
+    setup_parser.add_argument("--effort")
+    setup_parser.add_argument("--non-interactive", action="store_true")
+    setup_parser.add_argument("--reconfigure", action="store_true")
+    setup_parser.add_argument("--dry-run", action="store_true")
+    start_parser = commands.add_parser(
+        "start", help="Launch the configured interactive agent"
+    )
+    start_parser.add_argument("--target", type=Path, default=Path.cwd())
+    start_parser.add_argument("--dry-run", action="store_true")
+    doctor = commands.add_parser("doctor", help="Read-only environment readiness")
+    doctor.add_argument("--target", type=Path, default=Path.cwd())
+    doctor.add_argument("--json", action="store_true")
+    doctor.add_argument("--workload-approved", action="store_true")
+    doctor.add_argument("--device")
+    doctor.add_argument("--framework", choices=("torch", "onnxruntime", "cupy"))
+    doctor.add_argument("--python", type=Path)
+    doctor.add_argument("--artifact", action="append", default=[])
+    doctor.add_argument("--tool", action="append", default=[])
+    doctor.add_argument("--scratch", type=Path)
+    doctor.add_argument("--min-free-bytes", type=int, default=0)
     list_parser = commands.add_parser("list", help="List product accelerators")
     list_parser.add_argument("--json", action="store_true")
     inspect_parser = commands.add_parser(
@@ -54,6 +84,53 @@ def main(argv: Sequence[str] | None = None) -> int:
     artifact_parser.add_argument("--repeat", type=int, default=3)
     artifact_parser.add_argument("--warmup", type=int, default=1)
     args = parser.parse_args(argv)
+    if args.command in ("init", "start", "doctor"):
+        try:
+            root = args.target.resolve()
+            if args.command == "doctor":
+                return report(
+                    readiness(
+                        root,
+                        workload_approved=args.workload_approved,
+                        device=args.device,
+                        framework=args.framework,
+                        python=args.python,
+                        artifacts=tuple(args.artifact),
+                        tools=tuple(args.tool),
+                        scratch=args.scratch,
+                        min_free_bytes=args.min_free_bytes,
+                    ),
+                    args.json,
+                )
+            if args.command == "start":
+                checks = readiness(root)
+                if any(check.status == "BLOCKED" for check in checks):
+                    return report(checks, False)
+                return start(root, args.dry_run)
+            interactive = not args.non_interactive and sys.stdin.isatty()
+            print(
+                setup(
+                    root,
+                    args.agent,
+                    args.backend,
+                    args.model,
+                    args.effort,
+                    interactive=interactive,
+                    reconfigure=args.reconfigure,
+                    dry_run=args.dry_run,
+                )
+            )
+            if not args.dry_run:
+                report(readiness(root), False)
+            if interactive and not args.dry_run:
+                action = choose(
+                    "Next action", ["Start guided session", "Exit setup"], "Exit setup"
+                )
+                if action == "Start guided session":
+                    return start(root)
+            return 0
+        except (ValueError, OSError) as error:
+            parser.error(str(error))
     if args.command == "agent":
         try:
             print(agent_init(args.target, args.agent, args.dry_run))
